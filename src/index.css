@@ -47,9 +47,9 @@ html, body {
   line-height: 1.5;
   height: 100%;
   width: 100%;
-  overflow: hidden; /* Prevent body scroll, use sub-containers */
+  overflow-y: auto; /* Restore natural scroll if possible */
   -webkit-font-smoothing: antialiased;
-  touch-action: pan-y; /* ALLOW vertical scroll, but disable zoom/pinch */
+  touch-action: auto; /* Reset to auto for reliability */
   -webkit-text-size-adjust: 100%;
 }
 
@@ -310,11 +310,15 @@ select option {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.8); /* Darker backdrop */
-  z-index: 9999; /* Ensure it covers everything including the nav */
+  background: rgba(0,0,0,0.8);
+  z-index: 9999;
   display: flex;
   align-items: flex-end;
   justify-content: center;
+  /* Lift the sheet above the bottom nav */
+  padding-bottom: calc(var(--nav-height) + env(safe-area-inset-bottom, 20px) + 12px);
+  padding-left: 10px;
+  padding-right: 10px;
   animation: fadeIn 0.2s ease;
   touch-action: manipulation;
 }
@@ -322,17 +326,16 @@ select option {
 
 .modal-sheet {
   background: var(--bg-surface);
-  border-top-left-radius: 24px;
-  border-top-right-radius: 24px;
+  border-radius: 24px; /* Fully rounded floating card */
   width: 100%;
-  max-width: 480px;
-  max-height: 94dvh;
+  max-width: 460px;
+  max-height: 80dvh; /* Slightly shorter to avoid header overlap when floating */
   display: flex;
   flex-direction: column;
   animation: slideUp 0.3s cubic-bezier(0.34, 1.2, 0.64, 1);
-  padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 20px);
+  padding-bottom: 20px;
   touch-action: manipulation;
-  box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
+  box-shadow: 0 -10px 40px rgba(0,0,0,0.5), 0 20px 50px rgba(0,0,0,0.4);
 }
 @keyframes slideUp {
   from { transform: translateY(80px); opacity: 0; }
