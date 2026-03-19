@@ -17,10 +17,10 @@ export default function NotificationsPage({ onGoToOrders }) {
       return Math.round((target - today) / (1000 * 60 * 60 * 24));
     };
 
-    const getClientName = (id) => clients.find(c => c.id === id)?.name || 'Άγνωστος πελάτης';
+    const getClientName = (id) => (clients || []).find(c => c.id === id)?.name || 'Άγνωστος πελάτης';
 
     // 1. Payment Deadlines
-    const activeOrders = orders.filter(o => !o.archived && o.status !== 'completed');
+    const activeOrders = (orders || []).filter(o => !o.archived && o.status !== 'completed');
     
     activeOrders.forEach(o => {
       if (o.paymentDeadlineDate) {
@@ -68,7 +68,7 @@ export default function NotificationsPage({ onGoToOrders }) {
     });
 
     // 3. Low Stock Products
-    const lowStock = products.filter(p => !p.archived && parseFloat(p.quantity) < 5);
+    const lowStock = (products || []).filter(p => !p.archived && parseFloat(p.quantity) < 5);
     lowStock.forEach(p => {
       list.push({
         id: `stock-${p.id}`,

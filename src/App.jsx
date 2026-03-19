@@ -138,7 +138,7 @@ export default function App() {
     if (!orders || !products) return 0;
     const now = new Date();
     // upcoming payment deadlines (next 7 days) + expected delivery (next 2 days)
-    const upcomingPayments = orders.filter(o => !o.archived && o.status !== 'completed' && o.paymentDeadlineDate);
+    const upcomingPayments = (orders || []).filter(o => !o.archived && o.status !== 'completed' && o.paymentDeadlineDate);
     // basic mock count for now, will calculate properly in NotificationsPage 
     let count = 0;
     upcomingPayments.forEach(o => {
@@ -147,7 +147,7 @@ export default function App() {
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       if (diffDays >= -14 && diffDays <= 7) count++;
     });
-    const lowStock = products.filter(p => !p.archived && parseFloat(p.quantity) < 5);
+    const lowStock = (products || []).filter(p => !p.archived && parseFloat(p.quantity) < 5);
     return count + lowStock.length;
   }, [orders, products]);
 
@@ -215,13 +215,10 @@ export default function App() {
             </button>
           );
         })}
-        {/* Dev-only seed button */}
-        {import.meta.env.DEV && (
-          <button className="nav-item" onClick={seedDemoData} title="Φόρτωση δοκιμαστικών δεδομένων">
-            <FlaskConical size={22} strokeWidth={1.8} />
-            Demo
-          </button>
-        )}
+        <button className="nav-item" onClick={seedDemoData} title="Φόρτωση δοκιμαστικών δεδομένων">
+          <FlaskConical size={22} strokeWidth={1.8} />
+          Demo
+        </button>
         <button className="nav-item" onClick={logout}>
           <LogOut size={22} strokeWidth={1.8} />
           Έξοδος

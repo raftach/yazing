@@ -5,7 +5,7 @@ import { LayoutDashboard, TrendingUp, Clock, CheckCircle2, Package, AlertTriangl
 export default function DashboardPage({ onGoToOrders }) {
   const { orders, products, clients } = useApp();
 
-  const activeOrders = useMemo(() => orders.filter(o => !o.archived), [orders]);
+  const activeOrders = useMemo(() => (orders || []).filter(o => !o.archived), [orders]);
   
   const stats = useMemo(() => {
     let revenue = 0;
@@ -28,10 +28,10 @@ export default function DashboardPage({ onGoToOrders }) {
   }, [activeOrders]);
 
   const lowStockProducts = useMemo(() => {
-    return products.filter(p => !p.archived && parseFloat(p.quantity) < 5);
+    return (products || []).filter(p => !p.archived && parseFloat(p.quantity) < 5);
   }, [products]);
 
-  const getClientName = (id) => clients.find(c => c.id === id)?.name || '—';
+  const getClientName = (id) => (clients || []).find(c => c.id === id)?.name || '—';
 
   return (
     <div className="page-wrapper" style={{ paddingBottom: '90px' }}>
