@@ -22,7 +22,7 @@ export default function ProductsPage({ onAddProductDone, autoOpenForm }) {
     }
   }, [autoOpenForm]);
 
-  const filtered = products.filter(p =>
+  const filtered = (products || []).filter(p =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
     (p.code && p.code.toLowerCase().includes(search.toLowerCase()))
   );
@@ -75,11 +75,11 @@ export default function ProductsPage({ onAddProductDone, autoOpenForm }) {
       <div className="page-content">
         <div className="stats-row">
           <div className="stat-card">
-            <span className="stat-value text-accent">{products.length}</span>
+            <span className="stat-value text-accent">{(products || []).length}</span>
             <span className="stat-label">Προϊόντα</span>
           </div>
           <div className="stat-card">
-            <span className="stat-value text-warning">{products.filter(p => (parseInt(p.quantity) || 0) < 5).length}</span>
+            <span className="stat-value text-warning">{(products || []).filter(p => (parseInt(p.quantity) || 0) < 5).length}</span>
             <span className="stat-label">Χαμηλό Απόθεμα</span>
           </div>
         </div>

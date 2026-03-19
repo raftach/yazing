@@ -48,10 +48,10 @@ export default function OrdersPage({ onGoToAddClient, onGoToAddProduct }) {
   const [viewOrder, setViewOrder] = useState(null);
   const [errors, setErrors] = useState({});
 
-  const activeOrders = useMemo(() => orders.filter(o => !o.archived), [orders]);
-  const archivedOrders = useMemo(() => orders.filter(o => o.archived), [orders]);
+  const activeOrders = useMemo(() => (orders || []).filter(o => !o.archived), [orders]);
+  const archivedOrders = useMemo(() => (orders || []).filter(o => o.archived), [orders]);
 
-  const clientOptions = useMemo(() => clients.map(c => ({
+  const clientOptions = useMemo(() => (clients || []).map(c => ({
     id: c.id,
     title: c.name,
     subtitle: `ΑΦΜ: ${c.afm}`,
@@ -60,7 +60,7 @@ export default function OrdersPage({ onGoToAddClient, onGoToAddProduct }) {
 
   const productOptions = useMemo(() => {
     const map = new Map();
-    if (products) {
+    if (products && Array.isArray(products)) {
       products.forEach(p => {
         if (!p.archived) {
           map.set(p.name, {
@@ -73,7 +73,7 @@ export default function OrdersPage({ onGoToAddClient, onGoToAddProduct }) {
       });
     }
     // Add any historical product names that aren't in current inventory
-    orders.forEach(o => {
+    (orders || []).forEach(o => {
       if (o.product && !map.has(o.product)) {
          map.set(o.product, { id: o.product, title: o.product, subtitle: 'Ιστορικό είδος', searchContent: o.product });
       }
@@ -88,7 +88,7 @@ export default function OrdersPage({ onGoToAddClient, onGoToAddProduct }) {
     if (form.clientId && form.product.trim()) {
       const match = form.product.trim().toLowerCase();
       // Find the most recent order for this client with the exact same product name
-      const lastOrder = [...orders]
+      const lastOrder = [...(orders || [])]
         .filter(o => o.clientId === form.clientId && o.product && o.product.trim().toLowerCase() === match)
         .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
         
@@ -103,7 +103,7 @@ export default function OrdersPage({ onGoToAddClient, onGoToAddProduct }) {
     if (!search) return list;
     const s = search.toLowerCase();
     return list.filter(o => {
-      const client = clients.find(c => c.id === o.clientId);
+      const client = (clients || []).find(c => c.id === o.clientId);
       return (
         (client?.name || '').toLowerCase().includes(s) ||
         (o.product || '').toLowerCase().includes(s) ||
@@ -168,7 +168,7 @@ export default function OrdersPage({ onGoToAddClient, onGoToAddProduct }) {
     setShowForm(false);
   };
 
-  const getClientName = (id) => clients.find(c => c.id === id)?.name || '—';
+  const getClientName = (id) => (clients || []).find(c => c.id === id)?.name || '—';
 
   const formatDate = (iso) => {
     if (!iso) return '';
@@ -513,7 +513,7 @@ END:VCALENDAR`;
 }
 
 function OrderDetailSection({ order, clients }) {
-  const client = clients.find(c => c.id === order.clientId);
+  const client = (clients || []).find(c => c.id === order.clientId);
   const statusInfo = STATUS_MAP[order.status] || STATUS_OPTIONS[0];
   const paymentLabel = PAYMENT_OPTIONS.find(p => p.value === order.paymentOption)?.label || order.paymentOption;
 

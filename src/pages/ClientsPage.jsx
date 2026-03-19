@@ -14,11 +14,11 @@ export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
   const [errors, setErrors] = useState({});
 
   const clientOrders = viewClient 
-    ? orders.filter(o => o.clientId === viewClient.id).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)) 
+    ? (orders || []).filter(o => o.clientId === viewClient.id).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)) 
     : [];
 
   const clientPrices = {};
-  clientOrders.forEach(o => {
+  (clientOrders || []).forEach(o => {
     if (o.product && o.agreedPrice) {
       if (!clientPrices[o.product]) {
         clientPrices[o.product] = [];
@@ -38,7 +38,7 @@ export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
     }
   }, [autoOpenForm]);
 
-  const filtered = clients.filter(c =>
+  const filtered = (clients || []).filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     c.afm.includes(search) ||
     c.contactPerson.toLowerCase().includes(search.toLowerCase())

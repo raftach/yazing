@@ -22,12 +22,13 @@ export default function Combobox({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const selectedOption = useMemo(() => options.find(o => o.id === value), [options, value]);
+  const selectedOption = useMemo(() => (options || []).find(o => o.id === value), [options, value]);
 
   const filteredOptions = useMemo(() => {
-    if (!search.trim()) return options;
+    const opts = options || [];
+    if (!search.trim()) return opts;
     const s = search.toLowerCase();
-    return options.filter(o => {
+    return opts.filter(o => {
        const content = o.searchContent || `${o.title} ${o.subtitle || ''}`;
        return content.toLowerCase().includes(s);
     });

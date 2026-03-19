@@ -131,8 +131,6 @@ export default function App() {
     setActiveTab('orders');
   }, []);
 
-  if (!isAuthenticated) return <LoginPage />;
-
   // Compute notification count
   const notifCount = React.useMemo(() => {
     if (!orders || !products) return 0;
@@ -151,6 +149,8 @@ export default function App() {
     return count + lowStock.length;
   }, [orders, products]);
 
+  if (!isAuthenticated) return <LoginPage />;
+
   return (
     <div style={{
       minHeight: '100dvh',
@@ -158,34 +158,29 @@ export default function App() {
       display: 'flex',
       flexDirection: 'column',
     }}>
-      {/* Pages */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: activeTab === 'dashboard' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}>
-          <DashboardPage onGoToOrders={handleGoToOrders} />
-        </div>
-        <div style={{ display: activeTab === 'clients' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {activeTab === 'dashboard' && <DashboardPage onGoToOrders={handleGoToOrders} />}
+        {activeTab === 'clients' && (
           <ClientsPage
             key={pendingAddClient ? 'add-client-mode' : 'normal-mode'}
             autoOpenForm={pendingAddClient}
             onAddClientDone={pendingAddClient ? handleClientAdded : null}
           />
-        </div>
-        <div style={{ display: activeTab === 'orders' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}>
+        )}
+        {activeTab === 'orders' && (
           <OrdersPage 
             onGoToAddClient={handleGoToAddClient} 
             onGoToAddProduct={handleGoToAddProduct}
           />
-        </div>
-        <div style={{ display: activeTab === 'products' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}>
+        )}
+        {activeTab === 'products' && (
           <ProductsPage 
             key={pendingAddProduct ? 'add-product-mode' : 'normal-mode'}
             autoOpenForm={pendingAddProduct}
             onAddProductDone={pendingAddProduct ? handleProductAdded : null}
           />
-        </div>
-        <div style={{ display: activeTab === 'notifications' ? 'flex' : 'none', flex: 1, flexDirection: 'column' }}>
-          <NotificationsPage onGoToOrders={handleGoToOrders} />
-        </div>
+        )}
+        {activeTab === 'notifications' && <NotificationsPage onGoToOrders={handleGoToOrders} />}
       </div>
 
       {/* Bottom Navigation */}

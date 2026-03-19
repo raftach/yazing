@@ -7,7 +7,10 @@ const DEFAULT_PASSWORD = 'skydraOnTop';
 function loadFromStorage(key, defaultValue) {
   try {
     const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : defaultValue;
+    if (!stored) return defaultValue;
+    const parsed = JSON.parse(stored);
+    if (Array.isArray(defaultValue) && !Array.isArray(parsed)) return defaultValue;
+    return parsed || defaultValue;
   } catch {
     return defaultValue;
   }
