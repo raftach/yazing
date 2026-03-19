@@ -33,7 +33,7 @@ export default function LoginPage() {
     }}>
       <div style={{ width: '100%', maxWidth: '360px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
         {/* Logo */}
-        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', paddingTop: 'env(safe-area-inset-top, 20px)' }}>
           <div style={{
             width: '72px', height: '72px',
             background: 'linear-gradient(135deg, #4f8ef7, #a78bfa)',
@@ -45,7 +45,7 @@ export default function LoginPage() {
           </div>
           <div>
             <h1 style={{ fontSize: '28px', fontWeight: 800, background: 'linear-gradient(135deg, #f0f2f8, #8892a4)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              LogiTrack
+              Yazing
             </h1>
             <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '4px' }}>Logistics Management System</p>
           </div>

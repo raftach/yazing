@@ -498,7 +498,7 @@ END:VEVENT`;
 
   const icsStr = `BEGIN:VCALENDAR
 VERSION:2.0
-PRODID:-//LogiTrack ERP//Calendar Sync//EL
+PRODID:-//Yazing//Calendar Sync//EL
 CALSCALE:GREGORIAN
 ${events.join('\n')}
 END:VCALENDAR`;
