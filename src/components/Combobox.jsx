@@ -45,14 +45,15 @@ export default function Combobox({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          padding: '10px 12px',
+          padding: '0 12px',
           background: 'var(--bg-card)',
           border: '1px solid var(--border)',
           borderRadius: 'var(--radius-md)',
           textAlign: 'left',
           color: selectedOption ? 'var(--text-base)' : 'var(--text-muted)',
           fontSize: '14px',
-          cursor: 'pointer'
+          cursor: 'pointer',
+          height: '44px'
         }}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

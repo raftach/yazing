@@ -88,10 +88,14 @@ input, textarea, select {
   background: var(--bg-elevated);
   color: var(--text-primary);
   border-radius: var(--radius-md);
-  padding: 12px 14px;
+  padding: 10px 14px;
   width: 100%;
+  height: 44px; /* Explicit height to match date pickers and regular inputs */
   transition: border-color 0.2s, box-shadow 0.2s;
+  appearance: none; /* Reset for iOS */
+  display: block;
 }
+textarea { height: auto; min-height: 80px; }
 input:focus, textarea:focus, select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-soft);
@@ -269,18 +273,17 @@ select option {
   transform: translateX(-50%);
   width: 100%;
   max-width: 480px;
-  height: var(--nav-height);
-  background: rgba(18, 22, 31, 1); /* Opaque for clearer visual separation */
+  height: calc(var(--nav-height) + env(safe-area-inset-bottom, 0px));
+  background: #12161f;
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border-top: 1px solid var(--border);
   display: flex;
-  align-items: center;
-  justify-content: center; /* Cluster items together */
-  gap: 2px; /* Small gap for compactness */
-  padding: 0 4px;
+  align-items: center; /* Vertically centered */
+  justify-content: center;
+  gap: 2px;
+  padding: 4px 4px calc(env(safe-area-inset-bottom, 20px) + 4px); /* Pushes items slightly lower relative to the center */
   z-index: 100;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .nav-item {
   display: flex;
@@ -307,13 +310,13 @@ select option {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.65);
-  z-index: 200;
+  background: rgba(0,0,0,0.75);
+  z-index: 1000; /* Way above bottom-nav */
   display: flex;
   align-items: flex-end;
   justify-content: center;
   animation: fadeIn 0.2s ease;
-  touch-action: manipulation; /* Disable zoom */
+  touch-action: manipulation;
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
@@ -323,12 +326,13 @@ select option {
   border-top-right-radius: 24px;
   width: 100%;
   max-width: 480px;
-  max-height: 92dvh;
+  max-height: 94dvh;
   display: flex;
   flex-direction: column;
   animation: slideUp 0.3s cubic-bezier(0.34, 1.2, 0.64, 1);
-  padding-bottom: calc(env(safe-area-inset-bottom, 16px) + 20px); /* Extra space for safety */
-  touch-action: manipulation; /* Disable zoom */
+  padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 20px);
+  touch-action: manipulation;
+  box-shadow: 0 -10px 40px rgba(0,0,0,0.5);
 }
 @keyframes slideUp {
   from { transform: translateY(80px); opacity: 0; }
@@ -352,10 +356,10 @@ select option {
 .modal-sheet-title { font-size: 17px; font-weight: 700; }
 .modal-sheet-body {
   overflow-y: auto;
-  padding: 18px 20px 40px; /* Large bottom padding for scroll freedom */
+  padding: 18px 20px 80px; /* Even more padding to clear any visual overlap if it occurs */
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 .modal-sheet-footer {
   padding: 14px 20px;
