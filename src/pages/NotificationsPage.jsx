@@ -92,7 +92,7 @@ export default function NotificationsPage({ onGoToOrders }) {
   };
 
   return (
-    <div className="page-wrapper" style={{ paddingBottom: '90px' }}>
+    <div className="page-wrapper">
       <div className="page-header">
         <div className="page-title-row">
           <h1>Ειδοποιήσεις</h1>
