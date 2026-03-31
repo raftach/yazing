@@ -6,40 +6,28 @@ import {
 } from 'lucide-react';
 import Combobox from '../components/Combobox';
 
-const STATUS_OPTIONS = [
-  { value: 'pending', label: 'Σε Εκκρεμότητα', badge: 'badge-warning' },
-  { value: 'processing', label: 'Σε Επεξεργασία', badge: 'badge-info' },
-  { value: 'completed', label: 'Ολοκληρωμένη', badge: 'badge-success' },
-  { value: 'cancelled', label: 'Ακυρωμένη', badge: 'badge-danger' },
-];
-
 const PAYMENT_OPTIONS = [
-  { value: 'immediate', label: 'Άμεση Πληρωμή' },
   { value: '1month', label: '1 Μήνας' },
   { value: '2months', label: '2 Μήνες' },
   { value: '3months', label: '3 Μήνες' },
-  { value: '6months', label: '6 Μήνες' },
-  { value: 'custom', label: 'Συμφωνημένη Ημερομηνία' },
+  { value: 'custom', label: 'Προσαρμοσμένο' },
 ];
-
-const STATUS_MAP = Object.fromEntries(STATUS_OPTIONS.map(s => [s.value, s]));
 
 const EMPTY_ORDER = {
   clientId: '',
   product: '',
   amount: '',
   agreedPrice: '',
-  paymentOption: 'immediate',
+  paymentOption: '1month',
   deliveryPlace: '',
   details: '',
-  status: 'pending',
   orderDate: '',
-  expectedDeliveryDate: '',
+  expectedReorderDate: '',
   paymentDeadlineDate: '',
 };
 
-export default function OrdersPage({ onGoToAddClient, onGoToAddProduct }) {
-  const { orders, clients, products, addOrder, updateOrder, archiveOrder, restoreOrder, permanentDeleteOrder } = useApp();
+export default function OrdersPage({ onGoToAddClient }) {
+  const { orders, clients, addOrder, updateOrder, archiveOrder, restoreOrder, permanentDeleteOrder } = useApp();
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState('active'); // 'active' | 'archived'
   const [showForm, setShowForm] = useState(false);
@@ -58,29 +46,6 @@ export default function OrdersPage({ onGoToAddClient, onGoToAddProduct }) {
     searchContent: `${c.name} ${c.afm} ${c.phone || ''}`
   })), [clients]);
 
-  const productOptions = useMemo(() => {
-    const map = new Map();
-    if (products && Array.isArray(products)) {
-      products.forEach(p => {
-        if (!p.archived) {
-          map.set(p.name, {
-            id: p.name,
-            title: p.name,
-            subtitle: p.code ? `#${p.code}` : '',
-            searchContent: `${p.name} ${p.code || ''}`
-          });
-        }
-      });
-    }
-    // Add any historical product names that aren't in current inventory
-    (orders || []).forEach(o => {
-      if (o.product && !map.has(o.product)) {
-         map.set(o.product, { id: o.product, title: o.product, subtitle: 'Ιστορικό είδος', searchContent: o.product });
-      }
-    });
-    return Array.from(map.values());
-  }, [products, orders]);
-
   // Auto-fill price based on previous orders of the same product for this client
   useEffect(() => {
     if (editingId) return; // Only auto-fill for new, non-editing orders
@@ -97,6 +62,18 @@ export default function OrdersPage({ onGoToAddClient, onGoToAddProduct }) {
       }
     }
   }, [form.clientId, form.product]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-calculate payment deadline
+  useEffect(() => {
+    if (form.paymentOption === 'custom' || !form.orderDate) return;
+    
+    const d = new Date(form.orderDate);
+    if (form.paymentOption === '1month') d.setMonth(d.getMonth() + 1);
+    else if (form.paymentOption === '2months') d.setMonth(d.getMonth() + 2);
+    else if (form.paymentOption === '3months') d.setMonth(d.getMonth() + 3);
+    
+    setForm(f => ({ ...f, paymentDeadlineDate: d.toISOString().split('T')[0] }));
+  }, [form.paymentOption, form.orderDate]);
 
   const getList = () => {
     const list = tab === 'active' ? activeOrders : archivedOrders;
@@ -115,7 +92,13 @@ export default function OrdersPage({ onGoToAddClient, onGoToAddProduct }) {
   const filteredOrders = getList();
 
   const openAdd = () => {
-    setForm({ ...EMPTY_ORDER, orderDate: new Date().toISOString().split('T')[0] });
+    const today = new Date();
+    const orderDateStr = today.toISOString().split('T')[0];
+    const reorderDate = new Date(today);
+    reorderDate.setMonth(today.getMonth() + 1);
+    const expectedReorderDate = reorderDate.toISOString().split('T')[0];
+
+    setForm({ ...EMPTY_ORDER, orderDate: orderDateStr, expectedReorderDate });
     setEditingId(null);
     setErrors({});
     setShowForm(true);
@@ -128,12 +111,11 @@ export default function OrdersPage({ onGoToAddClient, onGoToAddProduct }) {
       product: order.product || '',
       amount: order.amount || '',
       agreedPrice: order.agreedPrice || '',
-      paymentOption: order.paymentOption || 'immediate',
+      paymentOption: order.paymentOption || '1month',
       deliveryPlace: order.deliveryPlace || '',
       details: order.details || '',
-      status: order.status || 'pending',
       orderDate: order.orderDate || '',
-      expectedDeliveryDate: order.expectedDeliveryDate || '',
+      expectedReorderDate: order.expectedReorderDate || '',
       paymentDeadlineDate: order.paymentDeadlineDate || '',
     });
     setEditingId(order.id);
@@ -146,7 +128,6 @@ export default function OrdersPage({ onGoToAddClient, onGoToAddProduct }) {
     const e = {};
     if (!form.clientId) e.clientId = 'Επιλέξτε πελάτη';
     if (!form.product.trim()) e.product = 'Απαιτείται προϊόν';
-    if (!form.expectedDeliveryDate) e.expectedDeliveryDate = 'Απαιτείται ημερομηνία παράδοσης';
     if (form.agreedPrice === '' || form.agreedPrice === null || form.agreedPrice === undefined) {
       e.agreedPrice = 'Απαιτείται τιμή (βάλτε 0 αν είναι δωρεάν)';
     }
@@ -200,22 +181,6 @@ export default function OrdersPage({ onGoToAddClient, onGoToAddProduct }) {
       </div>
 
       <div className="page-content">
-        {/* Stats row only for active tab */}
-        {tab === 'active' && (
-          <div className="stats-row">
-            <div className="stat-card">
-              <span className="stat-value text-accent">{activeOrders.length}</span>
-              <span className="stat-label">Ενεργές</span>
-            </div>
-            <div className="stat-card">
-              <span className="stat-value text-success">
-                {activeOrders.filter(o => o.status === 'completed').length}
-              </span>
-              <span className="stat-label">Ολοκληρωμένες</span>
-            </div>
-          </div>
-        )}
-
         {filteredOrders.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon"><ClipboardList size={28} /></div>
@@ -226,18 +191,16 @@ export default function OrdersPage({ onGoToAddClient, onGoToAddProduct }) {
           </div>
         ) : (
           filteredOrders.map(order => {
-            const statusInfo = STATUS_MAP[order.status] || STATUS_OPTIONS[0];
             return (
               <div key={order.id} className="list-item" onClick={() => setViewOrder(order)}>
-                <div className="list-item-row">
+                <div className="list-item-row" style={{ marginBottom: 4 }}>
                   <span className="list-item-title">{getClientName(order.clientId)}</span>
-                  <span className={`badge ${statusInfo.badge}`}>{statusInfo.label}</span>
+                  {order.totalPrice && <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--accent)' }}>{parseFloat(order.totalPrice).toFixed(2)}€</span>}
                 </div>
                 <div className="list-item-row">
                   <span className="list-item-sub" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Package size={12} /> {order.product || '—'}
+                    <Package size={12} /> {order.product || '—'} {parseInt(order.amount) > 0 ? `(${order.amount} παλέτες)` : ''}
                   </span>
-                  {order.totalPrice && <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)' }}>{parseFloat(order.totalPrice).toFixed(2)}€</span>}
                 </div>
                 {order.deliveryPlace && <span className="list-item-sub" style={{ fontSize: '12px' }}>📍 {order.deliveryPlace}</span>}
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -334,46 +297,56 @@ export default function OrdersPage({ onGoToAddClient, onGoToAddProduct }) {
 
               <div className="form-group">
                 <label className="form-label">Προϊόν / Περιγραφή *</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <div style={{ flex: 1 }}>
-                    <Combobox
-                      value={form.product}
-                      onChange={val => {
-                        setForm(f => ({ ...f, product: val }));
-                      }}
-                      options={productOptions}
-                      placeholder="Αναζήτηση ή επιλογή προϊόντος..."
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    className="btn-icon"
-                    title="Νέο Προϊόν"
-                    style={{ flexShrink: 0, width: 44, height: 44, background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}
-                    onClick={() => { setShowForm(false); if (onGoToAddProduct) onGoToAddProduct(); }}
-                  >
-                    <Plus size={16} color="var(--accent)" />
-                  </button>
-                </div>
+                <input
+                  type="text"
+                  value={form.product}
+                  onChange={e => {
+                    const val = e.target.value.toUpperCase().replace(/[^A-Z0-9\u0370-\u03FF \-]/g, '');
+                    setForm(f => ({ ...f, product: val }));
+                  }}
+                  placeholder="Εισαγωγή προϊόντος..."
+                />
                 {errors.product && <span style={{ color: 'var(--danger)', fontSize: 12 }}>{errors.product}</span>}
               </div>
 
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Ημερ/νία Παραγγελίας</label>
-                  <input type="date" value={form.orderDate} onChange={e => setForm(f => ({ ...f, orderDate: e.target.value }))} />
+                  <input 
+                    type="date" 
+                    value={form.orderDate} 
+                    onChange={e => {
+                      const newOrderDate = e.target.value;
+                      if (!newOrderDate) {
+                        setForm(f => ({ ...f, orderDate: newOrderDate }));
+                        return;
+                      }
+                      const d = new Date(newOrderDate);
+                      d.setMonth(d.getMonth() + 1);
+                      setForm(f => ({ ...f, orderDate: newOrderDate, expectedReorderDate: d.toISOString().split('T')[0] }));
+                    }} 
+                  />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Αναμενόμενη Παράδοση *</label>
-                  <input type="date" value={form.expectedDeliveryDate} onChange={e => setForm(f => ({ ...f, expectedDeliveryDate: e.target.value }))} />
-                  {errors.expectedDeliveryDate && <span style={{ color: 'var(--danger)', fontSize: 12 }}>{errors.expectedDeliveryDate}</span>}
+                  <label className="form-label">Αναμενόμενη Επαναληπτική *</label>
+                  <input type="date" value={form.expectedReorderDate} onChange={e => setForm(f => ({ ...f, expectedReorderDate: e.target.value }))} />
                 </div>
               </div>
 
               <div className="form-row">
                 <div className="form-group">
-                  <label className="form-label">Ποσότητα</label>
-                  <input type="number" min="0" step="0.01" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} placeholder="0" />
+                  <label className="form-label">Ποσότητα (Παλέτες)</label>
+                  <input 
+                    type="number" 
+                    min="0" 
+                    step="1" 
+                    value={form.amount} 
+                    onChange={e => {
+                      const val = e.target.value.replace(/[^0-9]/g, '');
+                      setForm(f => ({ ...f, amount: val }));
+                    }} 
+                    placeholder="0" 
+                  />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Τιμή Μονάδας (€) *</label>
@@ -394,28 +367,23 @@ export default function OrdersPage({ onGoToAddClient, onGoToAddProduct }) {
                 </div>
               )}
 
-              <div className="form-group">
-                <label className="form-label">Τρόπος Πληρωμής</label>
-                <select value={form.paymentOption} onChange={e => setForm(f => ({ ...f, paymentOption: e.target.value }))}>
-                  {PAYMENT_OPTIONS.map(p => (<option key={p.value} value={p.value}>{p.label}</option>))}
-                </select>
-              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Προθεσμία Πληρωμής</label>
+                  <select value={form.paymentOption} onChange={e => setForm(f => ({ ...f, paymentOption: e.target.value }))}>
+                    {PAYMENT_OPTIONS.map(p => (<option key={p.value} value={p.value}>{p.label}</option>))}
+                  </select>
+                </div>
 
-              <div className="form-group">
-                <label className="form-label">Προθεσμία Πληρωμής</label>
-                <input type="date" value={form.paymentDeadlineDate} onChange={e => setForm(f => ({ ...f, paymentDeadlineDate: e.target.value }))} />
+                <div className="form-group">
+                  <label className="form-label">Ημερ/νία Λήξης Πληρωμής</label>
+                  <input type="date" value={form.paymentDeadlineDate} onChange={e => setForm(f => ({ ...f, paymentDeadlineDate: e.target.value, paymentOption: 'custom' }))} />
+                </div>
               </div>
 
               <div className="form-group">
                 <label className="form-label">Τόπος Παράδοσης</label>
                 <input value={form.deliveryPlace} onChange={e => setForm(f => ({ ...f, deliveryPlace: e.target.value }))} placeholder="Πόλη / Διεύθυνση" />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Κατάσταση</label>
-                <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-                  {STATUS_OPTIONS.map(s => (<option key={s.value} value={s.value}>{s.label}</option>))}
-                </select>
               </div>
 
               <div className="form-group">
@@ -488,7 +456,7 @@ END:VEVENT`;
   const desc = `Προϊόν: ${order.product}\\nΠοσότητα: ${order.amount}\\nΣύνολο: ${order.totalPrice}€\\nΠελάτης: ${clientName}`;
 
   if (order.orderDate) events.push(createEvent(`Παραγγελία: ${clientName}`, order.orderDate, desc));
-  if (order.expectedDeliveryDate) events.push(createEvent(`Παράδοση παραγγελίας: ${clientName}`, order.expectedDeliveryDate, desc + `\\nΤόπος: ${order.deliveryPlace || ''}`));
+  if (order.expectedReorderDate) events.push(createEvent(`Επαναληπτική παραγγελία: ${clientName}`, order.expectedReorderDate, desc));
   if (order.paymentDeadlineDate) events.push(createEvent(`Προθεσμία πληρωμής: ${clientName}`, order.paymentDeadlineDate, desc));
 
   if (events.length === 0) {
@@ -514,7 +482,6 @@ END:VCALENDAR`;
 
 function OrderDetailSection({ order, clients }) {
   const client = (clients || []).find(c => c.id === order.clientId);
-  const statusInfo = STATUS_MAP[order.status] || STATUS_OPTIONS[0];
   const paymentLabel = PAYMENT_OPTIONS.find(p => p.value === order.paymentOption)?.label || order.paymentOption;
 
   const formatDateString = (ymd) => {
@@ -529,7 +496,9 @@ function OrderDetailSection({ order, clients }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span className={`badge ${statusInfo.badge}`} style={{ fontSize: '13px', padding: '5px 12px' }}>{statusInfo.label}</span>
+        <span style={{ fontSize: '18px', fontWeight: 700 }}>
+          {order.product}
+        </span>
         <span style={{ fontSize: '24px', fontWeight: 800, color: 'var(--accent)' }}>
           {order.totalPrice ? `${parseFloat(order.totalPrice).toFixed(2)}€` : '—'}
         </span>
@@ -556,10 +525,10 @@ function OrderDetailSection({ order, clients }) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <InfoRow2 label="Ημερομηνία" value={formatDateString(order.orderDate)} />
-          <InfoRow2 label="Αναμ. Παράδοση" value={formatDateString(order.expectedDeliveryDate)} />
+          <InfoRow2 label="Αναμ. Επαναληπτική" value={formatDateString(order.expectedReorderDate)} />
           <InfoRow2 label="Λήξη Πληρωμής" value={formatDateString(order.paymentDeadlineDate)} />
           <InfoRow2 label="Προϊόν" value={order.product} />
-          <InfoRow2 label="Ποσότητα" value={order.amount} />
+          <InfoRow2 label="Ποσότητα" value={order.amount ? `${order.amount} παλέτες` : null} />
           <InfoRow2 label="Τιμή Μονάδας" value={order.agreedPrice ? `${order.agreedPrice}€` : null} />
           <InfoRow2 label="Τόπος Παράδοσης" value={order.deliveryPlace} />
           <InfoRow2 label="Πληρωμή" value={paymentLabel} />

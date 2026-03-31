@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../AppContext';
-import { Search, Plus, User, Phone, Mail, MapPin, FileText, Pencil, Trash2, X, Check, History, Tag } from 'lucide-react';
+import { Search, Plus, User, Phone, Mail, MapPin, FileText, Pencil, Trash2, X, Check, History, Tag, CalendarClock } from 'lucide-react';
 
 const EMPTY_CLIENT = { name: '', afm: '', contactPerson: '', phone: '', email: '', address: '', notes: '' };
 
@@ -16,6 +16,33 @@ export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
   const clientOrders = viewClient 
     ? (orders || []).filter(o => o.clientId === viewClient.id).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)) 
     : [];
+
+  const totalClientOrdersSum = clientOrders.reduce((sum, o) => sum + (parseFloat(o.totalPrice) || 0), 0);
+
+  // Find latest payment deadline and latest expected reorder date
+  let latestPaymentDate = null;
+  let latestReorderDate = null;
+
+  clientOrders.forEach(o => {
+    if (!o.archived) {
+      if (o.paymentDeadlineDate) {
+        if (!latestPaymentDate || new Date(o.paymentDeadlineDate) > new Date(latestPaymentDate)) {
+          latestPaymentDate = o.paymentDeadlineDate;
+        }
+      }
+      if (o.expectedReorderDate) {
+        if (!latestReorderDate || new Date(o.expectedReorderDate) > new Date(latestReorderDate)) {
+          latestReorderDate = o.expectedReorderDate;
+        }
+      }
+    }
+  });
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  };
 
   const clientPrices = {};
   (clientOrders || []).forEach(o => {
@@ -62,7 +89,16 @@ export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
   const validate = () => {
     const e = {};
     if (!form.name.trim()) e.name = 'Απαιτείται επωνυμία';
-    if (!form.afm.trim()) e.afm = 'Απαιτείται ΑΦΜ';
+    
+    if (!form.afm.trim()) {
+      e.afm = 'Απαιτείται ΑΦΜ';
+    } else if (!/^\d{9}$/.test(form.afm)) {
+      e.afm = 'Το ΑΦΜ πρέπει να είναι ακριβώς 9 ψηφία';
+    }
+
+    if (form.phone && !/^\d{10}$/.test(form.phone)) {
+      e.phone = 'Το τηλέφωνο πρέπει να είναι ακριβώς 10 ψηφία';
+    }
     return e;
   };
 
@@ -161,10 +197,22 @@ export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
               <DetailRow icon={<MapPin size={14}/>} label="Διεύθυνση" value={viewClient.address} />
               {viewClient.notes && <DetailRow icon={<FileText size={14}/>} label="Σημειώσεις" value={viewClient.notes} />}
 
+              {/* Dynamic Dates */}
+              {(latestPaymentDate || latestReorderDate) && <div className="divider" style={{ margin: '12px 0' }} />}
+              {latestPaymentDate && (
+                <DetailRow icon={<CalendarClock size={14} color="var(--danger)" />} label="Τελευταία Προθεσμία Πληρωμής" value={formatDate(latestPaymentDate)} />
+              )}
+              {latestReorderDate && (
+                <DetailRow icon={<CalendarClock size={14} color="var(--warning)" />} label="Αναμενόμενη Επαναληπτική Παραγγελία" value={formatDate(latestReorderDate)} />
+              )}
+
               {/* Order History */}
               <div className="divider" style={{ margin: '16px 0' }} />
               <div className="section-label" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
                 <History size={14} /> Ιστορικό Παραγγελιών ({clientOrders.length})
+                <span style={{ marginLeft: 'auto', fontWeight: 800, color: 'var(--accent)', fontSize: '15px' }}>
+                  Σύνολο: {totalClientOrdersSum.toFixed(2)}€
+                </span>
               </div>
               
               {clientOrders.length === 0 ? (
@@ -182,7 +230,10 @@ export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
                         <span>Ποσ.: {o.amount} | Μονάδα: {o.agreedPrice}€</span>
-                        <span>{new Date(o.createdAt).toLocaleDateString('el-GR')}</span>
+                        <span>{(() => {
+                          const d = new Date(o.createdAt);
+                          return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+                        })()}</span>
                       </div>
                     </div>
                   ))}
@@ -236,7 +287,11 @@ export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
               </div>
               <div className="form-group">
                 <label className="form-label">ΑΦΜ *</label>
-                <input value={form.afm} onChange={e => setForm(f => ({...f, afm: e.target.value}))} placeholder="123456789" />
+                <input 
+                  value={form.afm} 
+                  onChange={e => setForm(f => ({...f, afm: e.target.value.replace(/[^0-9]/g, '').slice(0, 9)}))} 
+                  placeholder="123456789" 
+                />
                 {errors.afm && <span style={{ color: 'var(--danger)', fontSize: 12 }}>{errors.afm}</span>}
               </div>
               <div className="form-row">
@@ -246,7 +301,12 @@ export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
                 </div>
                 <div className="form-group">
                   <label className="form-label">Τηλέφωνο</label>
-                  <input type="tel" value={form.phone} onChange={e => setForm(f => ({...f, phone: e.target.value}))} placeholder="69XXXXXXXX" />
+                  <input 
+                    type="tel" 
+                    value={form.phone} 
+                    onChange={e => setForm(f => ({...f, phone: e.target.value.replace(/[^0-9]/g, '').slice(0, 10)}))} 
+                    placeholder="69XXXXXXXX" 
+                  />
                 </div>
               </div>
               <div className="form-group">

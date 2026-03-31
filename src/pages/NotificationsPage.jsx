@@ -1,12 +1,14 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useApp } from '../AppContext';
-import { Bell, AlertCircle, Clock, CalendarDays, Package, ArrowRight } from 'lucide-react';
+import { Bell, AlertCircle, Clock, Trash2, Edit3, CalendarDays, ArrowRight, AlarmClock } from 'lucide-react';
 
 export default function NotificationsPage({ onGoToOrders }) {
-  const { orders, products, clients } = useApp();
+  const { orders, clients, deletedNotifications, markNotificationDeleted, updateOrder } = useApp();
+  const [activeTab, setActiveTab] = useState('payments'); // 'payments' | 'reorders'
 
-  const notifications = useMemo(() => {
-    const list = [];
+  const { payments, reorders } = useMemo(() => {
+    const pays = [];
+    const reords = [];
     const now = new Date();
     // Normalize now to start of day for exact day diffs
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -19,71 +21,67 @@ export default function NotificationsPage({ onGoToOrders }) {
 
     const getClientName = (id) => (clients || []).find(c => c.id === id)?.name || 'Άγνωστος πελάτης';
 
-    // 1. Payment Deadlines
-    const activeOrders = (orders || []).filter(o => !o.archived && o.status !== 'completed');
+    const activeOrders = (orders || []).filter(o => !o.archived);
     
     activeOrders.forEach(o => {
+      // 1. Payment Deadlines
       if (o.paymentDeadlineDate) {
-        const diff = getDiffDays(o.paymentDeadlineDate);
-        if (diff < 0 && diff >= -30) {
-          // overdue
-          list.push({
-            id: `pay-${o.id}`,
-            type: 'danger',
-            icon: AlertCircle,
-            title: `Καθυστέρηση πληρωμής (${Math.abs(diff)} ημ.)`,
-            desc: `Η παραγγελία του πελάτη ${getClientName(o.clientId)} έληξε. (${o.totalPrice}€)`,
-            orderId: o.id,
-            days: diff
-          });
-        } else if (diff >= 0 && diff <= 7) {
-          // upcoming
-          list.push({
-            id: `pay-${o.id}`,
-            type: diff <= 3 ? 'warning' : 'info',
-            icon: Clock,
-            title: diff === 0 ? 'Λήγει σήμερα πληρωμή' : `Πληρωμή σε ${diff} ημέρες`,
-            desc: `Η παραγγελία του πελάτη ${getClientName(o.clientId)} πρόκειται να λήξει. (${o.totalPrice}€)`,
-            orderId: o.id,
-            days: diff
-          });
+        const id = `pay-${o.id}`;
+        if (!deletedNotifications?.includes(id)) {
+          const diff = getDiffDays(o.paymentDeadlineDate);
+          if (diff <= 7) {
+            pays.push({
+              id,
+              orderId: o.id,
+              type: diff < 0 ? 'danger' : (diff === 0 ? 'danger' : 'warning'),
+              title: diff < 0 ? `Καθυστέρηση πληρωμής` : (diff === 0 ? 'Λήγει σήμερα' : `Πληρωμή σε ${diff} ημέρες`),
+              desc: `${getClientName(o.clientId)} - ${o.product} (${o.totalPrice}€)`,
+              days: diff,
+              isOverdue: diff < 0,
+              dateField: 'paymentDeadlineDate'
+            });
+          }
         }
       }
 
-      // 2. Expected Deliveries
-      if (o.expectedDeliveryDate) {
-        const diff = getDiffDays(o.expectedDeliveryDate);
-        if (diff === 0 || diff === 1) {
-          list.push({
-            id: `deliv-${o.id}`,
-            type: 'info',
-            icon: CalendarDays,
-            title: diff === 0 ? 'Παράδοση σήμερα' : 'Παράδοση αύριο',
-            desc: `Προς: ${getClientName(o.clientId)} (${o.deliveryPlace || 'Χωρίς διεύθυνση'})`,
-            orderId: o.id,
-            days: diff
-          });
+      // 2. Expected Reorders
+      if (o.expectedReorderDate) {
+        const id = `reorder-${o.id}`;
+        if (!deletedNotifications?.includes(id)) {
+          const diff = getDiffDays(o.expectedReorderDate);
+          if (diff <= 1) { // Up to 1 day before
+            reords.push({
+              id,
+              orderId: o.id,
+              type: diff < 0 ? 'danger' : (diff === 0 ? 'danger' : 'warning'),
+              title: diff < 0 ? `Αναμενόμενη παραγγελία` : (diff === 0 ? 'Επαναληπτική παραγγελία σήμερα' : 'Αναμένεται αύριο'),
+              desc: `${getClientName(o.clientId)} - ${o.product}`,
+              days: diff,
+              isOverdue: diff < 0,
+              dateField: 'expectedReorderDate'
+            });
+          }
         }
       }
     });
 
-    // 3. Low Stock Products
-    const lowStock = (products || []).filter(p => !p.archived && parseFloat(p.quantity) < 5);
-    lowStock.forEach(p => {
-      list.push({
-        id: `stock-${p.id}`,
-        type: 'danger',
-        icon: Package,
-        title: 'Χαμηλό Απόθεμα',
-        desc: `Το προϊόν "${p.name}" έχει μείνει με ${p.quantity} ${p.unit}.`,
-        days: -99 // sort bottom
-      });
-    });
+    pays.sort((a, b) => a.days - b.days);
+    reords.sort((a, b) => a.days - b.days);
 
-    // Sort by urgency (nearest days first, overdue top, low stock bottom)
-    return list.sort((a, b) => a.days - b.days);
+    return { payments: pays, reorders: reords };
 
-  }, [orders, products, clients]);
+  }, [orders, clients, deletedNotifications]);
+
+  const handleSnooze = (orderId, dateField) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order || !order[dateField]) return;
+    
+    const d = new Date(order[dateField]);
+    d.setDate(d.getDate() + 30);
+    const newDateStr = d.toISOString().split('T')[0];
+    
+    updateOrder(orderId, { [dateField]: newDateStr });
+  };
 
   const typeConfig = {
     danger: { bg: 'rgba(255, 69, 58, 0.1)', color: 'var(--danger)' },
@@ -91,54 +89,88 @@ export default function NotificationsPage({ onGoToOrders }) {
     info: { bg: 'rgba(10, 132, 255, 0.1)', color: 'var(--accent)' }
   };
 
+  const displayList = activeTab === 'payments' ? payments : reorders;
+
   return (
     <div className="page-wrapper">
       <div className="page-header">
         <div className="page-title-row">
           <h1>Ειδοποιήσεις</h1>
         </div>
+        <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+          <TabBtn active={activeTab === 'payments'} onClick={() => setActiveTab('payments')} count={payments.length}>Πληρωμές</TabBtn>
+          <TabBtn active={activeTab === 'reorders'} onClick={() => setActiveTab('reorders')} count={reorders.length}>Επαναληπτικές</TabBtn>
+        </div>
       </div>
 
-      <div className="page-content">
-        {notifications.length === 0 ? (
+      <div className="page-content" style={{ paddingBottom: '90px' }}>
+        {displayList.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon"><Bell size={28} /></div>
-            <div className="empty-state-title">Δεν υπάρχουν ειδοποιήσεις</div>
-            <div className="empty-state-sub">Όλα βαίνουν καλώς! Δεν υπάρχουν εκκρεμότητες.</div>
+            <div className="empty-state-title">Καμία ειδοποίηση</div>
+            <div className="empty-state-sub">Όλα δείχνουν να είναι εντάξει μέχρι στιγμής!</div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {notifications.map(notif => {
-              const Icon = notif.icon;
+            {displayList.map(notif => {
               const config = typeConfig[notif.type];
               return (
-                <div key={notif.id} className="card" style={{ padding: '14px', display: 'flex', gap: '14px', alignItems: 'flex-start' }}>
-                  <div style={{ 
-                    background: config.bg, color: config.color, 
-                    padding: '10px', borderRadius: 'var(--radius-md)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0
-                  }}>
-                    <Icon size={20} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '2px', color: config.color }}>
-                      {notif.title}
+                <div key={notif.id} className="card" style={{ padding: '14px', borderLeft: `3px solid ${config.color}`, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                    <div style={{ 
+                      background: config.bg, color: config.color, 
+                      padding: '10px', borderRadius: 'var(--radius-md)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      {notif.isOverdue ? <AlertCircle size={20} /> : <Clock size={20} />}
                     </div>
-                    <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-                      {notif.desc}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '2px', color: config.color, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        {notif.title}
+                        {notif.isOverdue && (
+                          <span style={{ fontSize: '11px', background: 'var(--danger)', color: '#fff', padding: '1px 5px', borderRadius: '4px' }}>
+                            {Math.abs(notif.days)} ημ. πίσω
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                        {notif.desc}
+                      </div>
                     </div>
                   </div>
-                  {notif.orderId && onGoToOrders && (
+                  
+                  {/* Actions Row */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
+                    {activeTab === 'reorders' && (
+                      <button 
+                        className="btn btn-secondary btn-sm" 
+                        onClick={() => handleSnooze(notif.orderId, notif.dateField)}
+                        title="Αναβολή για 30 ημέρες"
+                        style={{ padding: '4px 10px', fontSize: '12px' }}
+                      >
+                        <AlarmClock size={13} style={{ marginRight: 4 }} /> Αναβολή
+                      </button>
+                    )}
                     <button 
-                      className="btn-icon" 
-                      onClick={onGoToOrders}
-                      title="Προβολή παραγγελιών"
-                      style={{ flexShrink: 0 }}
+                      className="btn btn-secondary btn-sm" 
+                      onClick={() => markNotificationDeleted(notif.id)}
+                      title="Διαγραφή Ειδοποίησης"
+                      style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--danger)' }}
                     >
-                      <ArrowRight size={16} />
+                      <Trash2 size={13} />
                     </button>
-                  )}
+                    {onGoToOrders && (
+                      <button 
+                        className="btn btn-secondary btn-sm" 
+                        onClick={onGoToOrders}
+                        title="Προβολή παραγγελιών"
+                        style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--accent)' }}
+                      >
+                        <ArrowRight size={13} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -146,5 +178,37 @@ export default function NotificationsPage({ onGoToOrders }) {
         )}
       </div>
     </div>
+  );
+}
+
+function TabBtn({ active, onClick, count, children }) {
+  return (
+    <button onClick={onClick} style={{
+      background: active ? 'var(--accent-soft)' : 'var(--bg-elevated)',
+      border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
+      color: active ? 'var(--accent)' : 'var(--text-secondary)',
+      borderRadius: 'var(--radius-md)',
+      padding: '7px 14px',
+      fontFamily: 'inherit',
+      fontSize: '13px',
+      fontWeight: 600,
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      transition: 'all 0.2s',
+      flex: 1,
+      justifyContent: 'center'
+    }}>
+      {children}
+      <span style={{
+        background: active ? 'var(--accent)' : 'var(--bg-card)',
+        color: active ? '#fff' : 'var(--text-muted)',
+        borderRadius: '99px',
+        fontSize: '11px',
+        padding: '1px 7px',
+        fontWeight: 700,
+      }}>{count}</span>
+    </button>
   );
 }

@@ -21,30 +21,15 @@ function saveToStorage(key, value) {
 }
 
 export function AppProvider({ children }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return sessionStorage.getItem('erp_auth') === 'true';
-  });
   const [clients, setClients] = useState(() => loadFromStorage('erp_clients', []));
-  const [products, setProducts] = useState(() => loadFromStorage('erp_products', []));
   const [orders, setOrders] = useState(() => loadFromStorage('erp_orders', []));
+  const [blacklist, setBlacklist] = useState(() => loadFromStorage('erp_blacklist', []));
+  const [deletedNotifications, setDeletedNotifications] = useState(() => loadFromStorage('erp_deleted_notifs', []));
 
   useEffect(() => { saveToStorage('erp_clients', clients); }, [clients]);
-  useEffect(() => { saveToStorage('erp_products', products); }, [products]);
   useEffect(() => { saveToStorage('erp_orders', orders); }, [orders]);
-
-  const login = useCallback((password) => {
-    if (password === DEFAULT_PASSWORD) {
-      sessionStorage.setItem('erp_auth', 'true');
-      setIsAuthenticated(true);
-      return true;
-    }
-    return false;
-  }, []);
-
-  const logout = useCallback(() => {
-    sessionStorage.removeItem('erp_auth');
-    setIsAuthenticated(false);
-  }, []);
+  useEffect(() => { saveToStorage('erp_blacklist', blacklist); }, [blacklist]);
+  useEffect(() => { saveToStorage('erp_deleted_notifs', deletedNotifications); }, [deletedNotifications]);
 
   // Clients CRUD
   const addClient = useCallback((client) => {
@@ -61,19 +46,28 @@ export function AppProvider({ children }) {
     setClients(prev => prev.filter(c => c.id !== id));
   }, []);
 
-  // Products CRUD
-  const addProduct = useCallback((product) => {
-    const newProduct = { ...product, id: Date.now().toString() };
-    setProducts(prev => [...prev, newProduct]);
-    return newProduct;
+  // Blacklist CRUD
+  const addBlacklistEntry = useCallback((entry) => {
+    const newEntry = { ...entry, id: Date.now().toString() };
+    setBlacklist(prev => [...prev, newEntry]);
+    return newEntry;
   }, []);
 
-  const updateProduct = useCallback((id, updates) => {
-    setProducts(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
+  const updateBlacklistEntry = useCallback((id, updates) => {
+    setBlacklist(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c));
   }, []);
 
-  const deleteProduct = useCallback((id) => {
-    setProducts(prev => prev.filter(p => p.id !== id));
+  const deleteBlacklistEntry = useCallback((id) => {
+    setBlacklist(prev => prev.filter(c => c.id !== id));
+  }, []);
+
+  const markNotificationDeleted = useCallback((id) => {
+    setDeletedNotifications(prev => {
+      if (!prev.includes(id)) {
+        return [...prev, id];
+      }
+      return prev;
+    });
   }, []);
 
   // Orders CRUD (soft-delete via archived flag)
@@ -101,10 +95,10 @@ export function AppProvider({ children }) {
 
   return (
     <AppContext.Provider value={{
-      isAuthenticated, login, logout,
       clients, addClient, updateClient, deleteClient,
-      products, addProduct, updateProduct, deleteProduct,
       orders, addOrder, updateOrder, archiveOrder, restoreOrder, permanentDeleteOrder,
+      blacklist, addBlacklistEntry, updateBlacklistEntry, deleteBlacklistEntry,
+      deletedNotifications, markNotificationDeleted,
     }}>
       {children}
     </AppContext.Provider>

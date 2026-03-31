@@ -1,27 +1,24 @@
 import React, { useState, useCallback } from 'react';
 import { useApp } from './AppContext';
-import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import ClientsPage from './pages/ClientsPage';
-import ProductsPage from './pages/ProductsPage';
 import OrdersPage from './pages/OrdersPage';
+import BlacklistPage from './pages/BlacklistPage';
 import NotificationsPage from './pages/NotificationsPage';
-import { Users, Package, ClipboardList, LogOut, FlaskConical, LayoutDashboard, Bell } from 'lucide-react';
-
+import { Users, ClipboardList, LayoutDashboard, Bell, ShieldBan } from 'lucide-react';
 
 const NAV_ITEMS = [
   { id: 'dashboard', label: 'Αρχική', icon: LayoutDashboard },
   { id: 'orders', label: 'Παραγγελίες', icon: ClipboardList },
-  { id: 'products', label: 'Προϊόντα', icon: Package },
   { id: 'clients', label: 'Πελάτες', icon: Users },
+  { id: 'blacklist', label: 'Blacklist', icon: ShieldBan },
   { id: 'notifications', label: 'Ειδοπ.', icon: Bell, hasBadge: true },
 ];
 
 export default function App() {
-  const { isAuthenticated, logout, orders, products } = useApp();
+  const { orders, deletedNotifications } = useApp();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [pendingAddClient, setPendingAddClient] = useState(false);
-  const [pendingAddProduct, setPendingAddProduct] = useState(false);
 
   const handleGoToOrders = useCallback(() => {
     setActiveTab('orders');
@@ -37,35 +34,41 @@ export default function App() {
     setActiveTab('orders');
   }, []);
 
-  const handleGoToAddProduct = useCallback(() => {
-    setActiveTab('products');
-    setPendingAddProduct(true);
-  }, []);
-
-  const handleProductAdded = useCallback(() => {
-    setPendingAddProduct(false);
-    setActiveTab('orders');
-  }, []);
-
   // Compute notification count
   const notifCount = React.useMemo(() => {
-    if (!orders || !products) return 0;
+    if (!orders) return 0;
     const now = new Date();
-    // upcoming payment deadlines (next 7 days) + expected delivery (next 2 days)
-    const upcomingPayments = (orders || []).filter(o => !o.archived && o.status !== 'completed' && o.paymentDeadlineDate);
-    // basic mock count for now, will calculate properly in NotificationsPage 
-    let count = 0;
-    upcomingPayments.forEach(o => {
-      const pDate = new Date(o.paymentDeadlineDate);
-      const diffTime = pDate - now;
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      if (diffDays >= -14 && diffDays <= 7) count++;
-    });
-    const lowStock = (products || []).filter(p => !p.archived && parseFloat(p.quantity) < 5);
-    return count + lowStock.length;
-  }, [orders, products]);
+    // Normalize now to start of day for exact day diffs
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  if (!isAuthenticated) return <LoginPage />;
+    const getDiffDays = (dateStr) => {
+      const dDate = new Date(dateStr);
+      const target = new Date(dDate.getFullYear(), dDate.getMonth(), dDate.getDate());
+      return Math.round((target - today) / (1000 * 60 * 60 * 24));
+    };
+
+    let count = 0;
+    const activeOrders = orders.filter(o => !o.archived);
+    
+    activeOrders.forEach(o => {
+      if (o.paymentDeadlineDate) {
+        const id = `pay-${o.id}`;
+        if (!deletedNotifications?.includes(id)) {
+          const diff = getDiffDays(o.paymentDeadlineDate);
+          if (diff <= 7) count++; // overdue or due within 7 days
+        }
+      }
+      if (o.expectedReorderDate) {
+        const id = `reorder-${o.id}`;
+        if (!deletedNotifications?.includes(id)) {
+          const diff = getDiffDays(o.expectedReorderDate);
+          if (diff <= 1) count++; // overdue or due tomorrow/today
+        }
+      }
+    });
+
+    return count;
+  }, [orders, deletedNotifications]);
 
   return (
     <div style={{
@@ -86,16 +89,9 @@ export default function App() {
         {activeTab === 'orders' && (
           <OrdersPage 
             onGoToAddClient={handleGoToAddClient} 
-            onGoToAddProduct={handleGoToAddProduct}
           />
         )}
-        {activeTab === 'products' && (
-          <ProductsPage 
-            key={pendingAddProduct ? 'add-product-mode' : 'normal-mode'}
-            autoOpenForm={pendingAddProduct}
-            onAddProductDone={pendingAddProduct ? handleProductAdded : null}
-          />
-        )}
+        {activeTab === 'blacklist' && <BlacklistPage />}
         {activeTab === 'notifications' && <NotificationsPage onGoToOrders={handleGoToOrders} />}
       </div>
 
@@ -126,10 +122,6 @@ export default function App() {
             </button>
           );
         })}
-        <button className="nav-item" onClick={logout}>
-          <LogOut size={22} strokeWidth={1.8} />
-          Έξοδος
-        </button>
       </nav>
     </div>
   );

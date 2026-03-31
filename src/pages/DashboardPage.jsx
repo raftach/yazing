@@ -1,35 +1,84 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useApp } from '../AppContext';
-import { LayoutDashboard, TrendingUp, Clock, CheckCircle2, Package, AlertTriangle, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, Package, ChevronRight } from 'lucide-react';
 
 export default function DashboardPage({ onGoToOrders }) {
-  const { orders, products, clients } = useApp();
+  const { orders, clients } = useApp();
+  const [selectedMonth, setSelectedMonth] = useState('');
 
   const activeOrders = useMemo(() => (orders || []).filter(o => !o.archived), [orders]);
   
-  const stats = useMemo(() => {
+  // Calculate hierarchical years and months
+  const filterOptions = useMemo(() => {
+    const rawOptions = [];
+    const now = new Date();
+    let maxYear = now.getFullYear();
+    let maxMonth = now.getMonth() + 1; // 1-12
+
+    let minYear = maxYear;
+    activeOrders.forEach(o => {
+      if (o.orderDate) {
+        const y = parseInt(o.orderDate.substring(0, 4), 10);
+        if (y && y < minYear) minYear = y;
+        if (y && y > maxYear) maxYear = y;
+      }
+    });
+
+    if (minYear > maxYear - 2) minYear = maxYear - 2; // Show at least 2 years back
+
+    for (let y = maxYear; y >= minYear; y--) {
+      // Add the Year Option (e.g. "2025")
+      rawOptions.push({ value: String(y), label: String(y) });
+      
+      // Add the Month Options for this year
+      const startMonth = (y === maxYear) ? maxMonth : 12;
+      for (let m = startMonth; m >= 1; m--) {
+        const diffMonths = (maxYear - y) * 12 + (maxMonth - m);
+        // Only show individual months for the last 12 months to keep menu short
+        if (diffMonths <= 12) {
+          const val = `${y}-${String(m).padStart(2, '0')}`;
+          const d = new Date(y, m - 1, 1);
+          const str = d.toLocaleString('el-GR', { month: 'long', year: 'numeric' });
+          const labelStr = str.charAt(0).toUpperCase() + str.slice(1);
+          rawOptions.push({ value: val, label: labelStr });
+        }
+      }
+    }
+    return rawOptions;
+  }, [activeOrders]);
+
+  const selectedLabel = useMemo(() => {
+    if (!selectedMonth) return '';
+    const opt = filterOptions.find(o => o.value === selectedMonth);
+    return opt ? opt.label.toUpperCase() : '';
+  }, [selectedMonth, filterOptions]);
+
+  const filteredOrders = useMemo(() => {
+    if (!selectedMonth) return [];
+    return activeOrders.filter(o => o.orderDate && o.orderDate.startsWith(selectedMonth));
+  }, [activeOrders, selectedMonth]);
+
+  const overallStats = useMemo(() => {
     let revenue = 0;
-    let pending = 0;
-    let completed = 0;
-    
     activeOrders.forEach(o => {
       if (o.totalPrice) revenue += parseFloat(o.totalPrice);
-      if (o.status === 'completed') completed++;
-      if (o.status === 'pending' || o.status === 'processing') pending++;
     });
-    
-    return { revenue: revenue.toFixed(2), pending, completed, total: activeOrders.length };
+    return { revenue: revenue.toFixed(2), total: activeOrders.length };
   }, [activeOrders]);
+
+  const stats = useMemo(() => {
+    let revenue = 0;
+    filteredOrders.forEach(o => {
+      if (o.totalPrice) revenue += parseFloat(o.totalPrice);
+    });
+    return { revenue: revenue.toFixed(2), total: filteredOrders.length };
+  }, [filteredOrders]);
 
   const recentOrders = useMemo(() => {
     return [...activeOrders]
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       .slice(0, 5);
   }, [activeOrders]);
-
-  const lowStockProducts = useMemo(() => {
-    return (products || []).filter(p => !p.archived && parseFloat(p.quantity) < 5);
-  }, [products]);
 
   const getClientName = (id) => (clients || []).find(c => c.id === id)?.name || '—';
 
@@ -38,6 +87,23 @@ export default function DashboardPage({ onGoToOrders }) {
       <div className="page-header">
         <div className="page-title-row">
           <h1>Αρχική</h1>
+          <select 
+            value={selectedMonth} 
+            onChange={e => setSelectedMonth(e.target.value)}
+            style={{ 
+              padding: '6px 12px', 
+              borderRadius: '8px', 
+              border: '1px solid var(--border)',
+              background: 'var(--bg-elevated)',
+              fontSize: '13px',
+              color: 'var(--text-primary)'
+            }}
+          >
+            <option value="">Επιλέξτε Μήνα / Έτος</option>
+            {filterOptions.map(opt => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
         </div>
         <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginTop: 4 }}>
           Καλώς ήρθατε στο Yazing
@@ -53,60 +119,39 @@ export default function DashboardPage({ onGoToOrders }) {
               <TrendingUp size={15} /> <span style={{ fontSize: '12px', fontWeight: 600 }}>ΣΥΝΟΛΙΚΑ ΕΣΟΔΑ</span>
             </div>
             <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--accent)', marginTop: 8 }}>
-              {stats.revenue}€
+              {overallStats.revenue}€
             </div>
           </div>
           <div className="stat-card" style={{ padding: '16px', background: 'var(--bg-elevated)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)' }}>
-              <LayoutDashboard size={15} /> <span style={{ fontSize: '12px', fontWeight: 600 }}>ΠΑΡΑΓΓΕΛΙΕΣ</span>
+              <LayoutDashboard size={15} /> <span style={{ fontSize: '12px', fontWeight: 600 }}>ΣΥΝΟΛΙΚΕΣ ΠΑΡΑΓΓΕΛΙΕΣ</span>
             </div>
             <div style={{ fontSize: '22px', fontWeight: 800, marginTop: 8 }}>
-              {stats.total}
+              {overallStats.total}
             </div>
           </div>
-          <div className="stat-card" style={{ padding: '16px', background: 'var(--bg-elevated)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--warning-text)' }}>
-              <Clock size={15} /> <span style={{ fontSize: '12px', fontWeight: 600 }}>ΕΚΚΡΕΜΕΙΣ</span>
-            </div>
-            <div style={{ fontSize: '22px', fontWeight: 800, marginTop: 8 }}>
-              {stats.pending}
-            </div>
-          </div>
-          <div className="stat-card" style={{ padding: '16px', background: 'var(--bg-elevated)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--success-text)' }}>
-              <CheckCircle2 size={15} /> <span style={{ fontSize: '12px', fontWeight: 600 }}>ΟΛΟΚΛΗΡΩΜΕΝΕΣ</span>
-            </div>
-            <div style={{ fontSize: '22px', fontWeight: 800, marginTop: 8 }}>
-              {stats.completed}
-            </div>
-          </div>
-        </div>
-
-        {/* Alerts Section */}
-        {lowStockProducts.length > 0 && (
-          <section>
-            <div className="section-label" style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--danger-text)' }}>
-              <AlertTriangle size={15} /> Προειδοποιήσεις Αποθέματος
-            </div>
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-              {lowStockProducts.map((p, i) => (
-                <div key={p.id} style={{ 
-                  padding: '12px 14px', 
-                  borderBottom: i < lowStockProducts.length - 1 ? '1px solid var(--border)' : 'none',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                }}>
-                  <div>
-                    <div style={{ fontSize: '14px', fontWeight: 600 }}>{p.name}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Κωδικός: {p.code || '—'}</div>
-                  </div>
-                  <div className="badge badge-danger">
-                    {p.quantity} {p.unit}
-                  </div>
+          
+          {selectedMonth && (
+            <>
+              <div className="stat-card" style={{ padding: '16px', background: 'var(--accent-soft)', border: '1px solid rgba(79,142,247,0.3)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent)' }}>
+                  <TrendingUp size={15} /> <span style={{ fontSize: '12px', fontWeight: 600 }}>ΕΣΟΔΑ ({selectedLabel})</span>
                 </div>
-              ))}
-            </div>
-          </section>
-        )}
+                <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--accent)', marginTop: 8 }}>
+                  {stats.revenue}€
+                </div>
+              </div>
+              <div className="stat-card" style={{ padding: '16px', background: 'var(--accent-soft)', border: '1px solid rgba(79,142,247,0.3)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent)' }}>
+                  <Package size={15} /> <span style={{ fontSize: '12px', fontWeight: 600 }}>ΠΑΡΑΓΓΕΛΙΕΣ ({selectedLabel})</span>
+                </div>
+                <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--accent)', marginTop: 8 }}>
+                  {stats.total}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
 
         {/* Recent Orders */}
         <section>
@@ -157,13 +202,13 @@ export default function DashboardPage({ onGoToOrders }) {
                 className="btn btn-secondary" 
                 style={{ flex: 1, fontSize: '13px', background: 'var(--bg-base)' }}
                 onClick={() => {
-                  const data = {
-                    clients: localStorage.getItem('erp_clients'),
-                    products: localStorage.getItem('erp_products'),
-                    orders: localStorage.getItem('erp_orders')
-                  };
-                  const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-                  const url = URL.createObjectURL(blob);
+                    const data = {
+                      clients: localStorage.getItem('erp_clients'),
+                      blacklist: localStorage.getItem('erp_blacklist'),
+                      orders: localStorage.getItem('erp_orders')
+                    };
+                    const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
                   const a = document.createElement('a');
                   a.href = url;
                   a.download = `logitap_backup_${new Date().toISOString().split('T')[0]}.json`;
@@ -189,9 +234,9 @@ export default function DashboardPage({ onGoToOrders }) {
                     reader.onload = (ev) => {
                       try {
                         const data = JSON.parse(ev.target.result);
-                        if (data.clients && data.products && data.orders) {
+                        if (data.clients && data.orders) {
                           localStorage.setItem('erp_clients', data.clients);
-                          localStorage.setItem('erp_products', data.products);
+                          if (data.blacklist) localStorage.setItem('erp_blacklist', data.blacklist);
                           localStorage.setItem('erp_orders', data.orders);
                           alert('Η επαναφορά ολοκληρώθηκε! Η σελίδα θα ανανεωθεί.');
                           window.location.reload();
