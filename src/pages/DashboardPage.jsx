@@ -59,19 +59,11 @@ export default function DashboardPage({ onGoToOrders }) {
   }, [activeOrders, selectedMonth]);
 
   const overallStats = useMemo(() => {
-    let revenue = 0;
-    activeOrders.forEach(o => {
-      if (o.totalPrice) revenue += parseFloat(o.totalPrice);
-    });
-    return { revenue: revenue.toFixed(2), total: activeOrders.length };
+    return { total: activeOrders.length };
   }, [activeOrders]);
 
   const stats = useMemo(() => {
-    let revenue = 0;
-    filteredOrders.forEach(o => {
-      if (o.totalPrice) revenue += parseFloat(o.totalPrice);
-    });
-    return { revenue: revenue.toFixed(2), total: filteredOrders.length };
+    return { total: filteredOrders.length };
   }, [filteredOrders]);
 
   const recentOrders = useMemo(() => {
@@ -113,15 +105,7 @@ export default function DashboardPage({ onGoToOrders }) {
       <div className="page-content" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         
         {/* Stats Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          <div className="stat-card" style={{ padding: '16px', background: 'var(--bg-elevated)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)' }}>
-              <TrendingUp size={15} /> <span style={{ fontSize: '12px', fontWeight: 600 }}>ΣΥΝΟΛΙΚΑ ΕΣΟΔΑ</span>
-            </div>
-            <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--accent)', marginTop: 8 }}>
-              {overallStats.revenue}€
-            </div>
-          </div>
+        <div style={{ display: 'grid', gridTemplateColumns: selectedMonth ? '1fr 1fr' : '1fr', gap: '12px' }}>
           <div className="stat-card" style={{ padding: '16px', background: 'var(--bg-elevated)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)' }}>
               <LayoutDashboard size={15} /> <span style={{ fontSize: '12px', fontWeight: 600 }}>ΣΥΝΟΛΙΚΕΣ ΠΑΡΑΓΓΕΛΙΕΣ</span>
@@ -132,24 +116,14 @@ export default function DashboardPage({ onGoToOrders }) {
           </div>
           
           {selectedMonth && (
-            <>
-              <div className="stat-card" style={{ padding: '16px', background: 'var(--accent-soft)', border: '1px solid rgba(79,142,247,0.3)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent)' }}>
-                  <TrendingUp size={15} /> <span style={{ fontSize: '12px', fontWeight: 600 }}>ΕΣΟΔΑ ({selectedLabel})</span>
-                </div>
-                <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--accent)', marginTop: 8 }}>
-                  {stats.revenue}€
-                </div>
+            <div className="stat-card" style={{ padding: '16px', background: 'var(--accent-soft)', border: '1px solid rgba(79,142,247,0.3)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent)' }}>
+                <Package size={15} /> <span style={{ fontSize: '12px', fontWeight: 600 }}>ΠΑΡΑΓΓΕΛΙΕΣ ({selectedLabel})</span>
               </div>
-              <div className="stat-card" style={{ padding: '16px', background: 'var(--accent-soft)', border: '1px solid rgba(79,142,247,0.3)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent)' }}>
-                  <Package size={15} /> <span style={{ fontSize: '12px', fontWeight: 600 }}>ΠΑΡΑΓΓΕΛΙΕΣ ({selectedLabel})</span>
-                </div>
-                <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--accent)', marginTop: 8 }}>
-                  {stats.total}
-                </div>
+              <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--accent)', marginTop: 8 }}>
+                {stats.total}
               </div>
-            </>
+            </div>
           )}
         </div>
 

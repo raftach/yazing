@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../AppContext';
 import { Search, Plus, User, Phone, Mail, MapPin, FileText, Pencil, Trash2, X, Check, History, Tag, CalendarClock } from 'lucide-react';
 
-const EMPTY_CLIENT = { name: '', afm: '', contactPerson: '', phone: '', email: '', address: '', notes: '' };
+const EMPTY_CLIENT = { name: '', contactPerson: '', phone: '', email: '', address: '', notes: '' };
 
 export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
   const { clients, orders, addClient, updateClient, deleteClient } = useApp();
@@ -16,8 +16,6 @@ export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
   const clientOrders = viewClient 
     ? (orders || []).filter(o => o.clientId === viewClient.id).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)) 
     : [];
-
-  const totalClientOrdersSum = clientOrders.reduce((sum, o) => sum + (parseFloat(o.totalPrice) || 0), 0);
 
   // Find latest payment deadline and latest expected reorder date
   let latestPaymentDate = null;
@@ -67,7 +65,6 @@ export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
 
   const filtered = (clients || []).filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.afm.includes(search) ||
     c.contactPerson.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -89,12 +86,6 @@ export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
   const validate = () => {
     const e = {};
     if (!form.name.trim()) e.name = 'Απαιτείται επωνυμία';
-    
-    if (!form.afm.trim()) {
-      e.afm = 'Απαιτείται ΑΦΜ';
-    } else if (!/^\d{9}$/.test(form.afm)) {
-      e.afm = 'Το ΑΦΜ πρέπει να είναι ακριβώς 9 ψηφία';
-    }
 
     if (form.phone && !/^\d{10}$/.test(form.phone)) {
       e.phone = 'Το τηλέφωνο πρέπει να είναι ακριβώς 10 ψηφία';
@@ -163,7 +154,6 @@ export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
             <div key={client.id} className="list-item" onClick={() => setViewClient(client)}>
               <div className="list-item-row">
                 <span className="list-item-title">{client.name}</span>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: 'monospace' }}>ΑΦΜ: {client.afm}</span>
               </div>
               {client.contactPerson && (
                 <div className="list-item-sub" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -190,7 +180,6 @@ export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
               <button className="btn-icon" onClick={() => setViewClient(null)}><X size={16} /></button>
             </div>
             <div className="modal-sheet-body">
-              <DetailRow icon={<FileText size={14}/>} label="ΑΦΜ" value={viewClient.afm} />
               <DetailRow icon={<User size={14}/>} label="Υπεύθυνος" value={viewClient.contactPerson} />
               <DetailRow icon={<Phone size={14}/>} label="Τηλέφωνο" value={viewClient.phone} href={viewClient.phone ? `tel:${viewClient.phone}` : null} />
               <DetailRow icon={<Mail size={14}/>} label="Email" value={viewClient.email} href={viewClient.email ? `mailto:${viewClient.email}` : null} />
@@ -203,16 +192,13 @@ export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
                 <DetailRow icon={<CalendarClock size={14} color="var(--danger)" />} label="Τελευταία Προθεσμία Πληρωμής" value={formatDate(latestPaymentDate)} />
               )}
               {latestReorderDate && (
-                <DetailRow icon={<CalendarClock size={14} color="var(--warning)" />} label="Αναμενόμενη Επαναληπτική Παραγγελία" value={formatDate(latestReorderDate)} />
+                <DetailRow icon={<CalendarClock size={14} color="var(--warning)" />} label="Επαναληπτική Παραγγελία" value={formatDate(latestReorderDate)} />
               )}
 
               {/* Order History */}
               <div className="divider" style={{ margin: '16px 0' }} />
               <div className="section-label" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
                 <History size={14} /> Ιστορικό Παραγγελιών ({clientOrders.length})
-                <span style={{ marginLeft: 'auto', fontWeight: 800, color: 'var(--accent)', fontSize: '15px' }}>
-                  Σύνολο: {totalClientOrdersSum.toFixed(2)}€
-                </span>
               </div>
               
               {clientOrders.length === 0 ? (
@@ -226,7 +212,6 @@ export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                         <span style={{ fontSize: '14px', fontWeight: 600 }}>{o.product || '—'}</span>
-                        <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)' }}>{o.totalPrice ? `${parseFloat(o.totalPrice).toFixed(2)}€` : '—'}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
                         <span>Ποσ.: {o.amount} | Μονάδα: {o.agreedPrice}€</span>
@@ -284,15 +269,6 @@ export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
                 <label className="form-label">Επωνυμία *</label>
                 <input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="Εταιρεία Α.Ε." />
                 {errors.name && <span style={{ color: 'var(--danger)', fontSize: 12 }}>{errors.name}</span>}
-              </div>
-              <div className="form-group">
-                <label className="form-label">ΑΦΜ *</label>
-                <input 
-                  value={form.afm} 
-                  onChange={e => setForm(f => ({...f, afm: e.target.value.replace(/[^0-9]/g, '').slice(0, 9)}))} 
-                  placeholder="123456789" 
-                />
-                {errors.afm && <span style={{ color: 'var(--danger)', fontSize: 12 }}>{errors.afm}</span>}
               </div>
               <div className="form-row">
                 <div className="form-group">

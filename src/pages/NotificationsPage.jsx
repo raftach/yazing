@@ -35,7 +35,7 @@ export default function NotificationsPage({ onGoToOrders }) {
               orderId: o.id,
               type: diff < 0 ? 'danger' : (diff === 0 ? 'danger' : 'warning'),
               title: diff < 0 ? `Καθυστέρηση πληρωμής` : (diff === 0 ? 'Λήγει σήμερα' : `Πληρωμή σε ${diff} ημέρες`),
-              desc: `${getClientName(o.clientId)} - ${o.product} (${o.totalPrice}€)`,
+              desc: `${getClientName(o.clientId)} - ${o.product}`,
               days: diff,
               isOverdue: diff < 0,
               dateField: 'paymentDeadlineDate'
@@ -54,7 +54,7 @@ export default function NotificationsPage({ onGoToOrders }) {
               id,
               orderId: o.id,
               type: diff < 0 ? 'danger' : (diff === 0 ? 'danger' : 'warning'),
-              title: diff < 0 ? `Αναμενόμενη παραγγελία` : (diff === 0 ? 'Επαναληπτική παραγγελία σήμερα' : 'Αναμένεται αύριο'),
+              title: diff < 0 ? `Επαναληπτική παραγγελία` : (diff === 0 ? 'Επαναληπτική παραγγελία σήμερα' : 'Αναμένεται αύριο'),
               desc: `${getClientName(o.clientId)} - ${o.product}`,
               days: diff,
               isOverdue: diff < 0,

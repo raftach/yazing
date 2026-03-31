@@ -42,8 +42,8 @@ export default function OrdersPage({ onGoToAddClient }) {
   const clientOptions = useMemo(() => (clients || []).map(c => ({
     id: c.id,
     title: c.name,
-    subtitle: `ΑΦΜ: ${c.afm}`,
-    searchContent: `${c.name} ${c.afm} ${c.phone || ''}`
+    subtitle: c.phone ? `Τηλ: ${c.phone}` : '',
+    searchContent: `${c.name} ${c.phone || ''}`
   })), [clients]);
 
   // Auto-fill price based on previous orders of the same product for this client
@@ -134,16 +134,10 @@ export default function OrdersPage({ onGoToAddClient }) {
     return e;
   };
 
-  const totalPrice = () => {
-    const amt = parseFloat(form.amount) || 0;
-    const price = parseFloat(form.agreedPrice) || 0;
-    return (amt * price).toFixed(2);
-  };
-
   const handleSave = () => {
     const e = validate();
     if (Object.keys(e).length) { setErrors(e); return; }
-    const payload = { ...form, totalPrice: totalPrice() };
+    const payload = { ...form };
     if (editingId) updateOrder(editingId, payload);
     else addOrder(payload);
     setShowForm(false);
@@ -195,7 +189,6 @@ export default function OrdersPage({ onGoToAddClient }) {
               <div key={order.id} className="list-item" onClick={() => setViewOrder(order)}>
                 <div className="list-item-row" style={{ marginBottom: 4 }}>
                   <span className="list-item-title">{getClientName(order.clientId)}</span>
-                  {order.totalPrice && <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--accent)' }}>{parseFloat(order.totalPrice).toFixed(2)}€</span>}
                 </div>
                 <div className="list-item-row">
                   <span className="list-item-sub" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -290,7 +283,7 @@ export default function OrdersPage({ onGoToAddClient }) {
                 return c ? (
                   <div style={{ background: 'var(--accent-soft)', border: '1px solid rgba(79,142,247,0.2)', borderRadius: 'var(--radius-md)', padding: '10px 13px', marginTop: '-4px', marginBottom: '16px' }}>
                     <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--accent)' }}>{c.name}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>ΑΦΜ: {c.afm} · {c.contactPerson} · {c.phone}</div>
+                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{c.contactPerson} · {c.phone}</div>
                   </div>
                 ) : null;
               })()}
@@ -328,7 +321,7 @@ export default function OrdersPage({ onGoToAddClient }) {
                   />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Αναμενόμενη Επαναληπτική *</label>
+                  <label className="form-label">Επαναληπτική *</label>
                   <input type="date" value={form.expectedReorderDate} onChange={e => setForm(f => ({ ...f, expectedReorderDate: e.target.value }))} />
                 </div>
               </div>
@@ -355,17 +348,7 @@ export default function OrdersPage({ onGoToAddClient }) {
                 </div>
               </div>
 
-              {/* Total */}
-              {(form.amount || form.agreedPrice) && (
-                <div style={{
-                  background: 'var(--accent-soft)', border: '1px solid rgba(79,142,247,0.2)',
-                  borderRadius: 'var(--radius-md)', padding: '10px 14px',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                }}>
-                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>Σύνολο Παραγγελίας</span>
-                  <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--accent)' }}>{totalPrice()}€</span>
-                </div>
-              )}
+
 
               <div className="form-row">
                 <div className="form-group">
@@ -453,7 +436,7 @@ END:VEVENT`;
   };
 
   const clientName = client?.name || 'Άγνωστος πελάτης';
-  const desc = `Προϊόν: ${order.product}\\nΠοσότητα: ${order.amount}\\nΣύνολο: ${order.totalPrice}€\\nΠελάτης: ${clientName}`;
+  const desc = `Προϊόν: ${order.product}\\nΠοσότητα: ${order.amount}\\nΠελάτης: ${clientName}`;
 
   if (order.orderDate) events.push(createEvent(`Παραγγελία: ${clientName}`, order.orderDate, desc));
   if (order.expectedReorderDate) events.push(createEvent(`Επαναληπτική παραγγελία: ${clientName}`, order.expectedReorderDate, desc));
@@ -499,9 +482,6 @@ function OrderDetailSection({ order, clients }) {
         <span style={{ fontSize: '18px', fontWeight: 700 }}>
           {order.product}
         </span>
-        <span style={{ fontSize: '24px', fontWeight: 800, color: 'var(--accent)' }}>
-          {order.totalPrice ? `${parseFloat(order.totalPrice).toFixed(2)}€` : '—'}
-        </span>
       </div>
 
       <div className="divider" />
@@ -509,7 +489,6 @@ function OrderDetailSection({ order, clients }) {
       <section>
         <div className="section-label" style={{ marginBottom: 10 }}>Πελάτης</div>
         <div style={{ fontSize: '16px', fontWeight: 600 }}>{client?.name || '—'}</div>
-        {client?.afm && <div style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>ΑΦΜ: {client.afm}</div>}
         {client?.contactPerson && <div style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Υπεύθυνος: {client.contactPerson}</div>}
         {client?.phone && <div style={{ fontSize: '13px' }}><a href={`tel:${client.phone}`} style={{ color: 'var(--accent)' }}>📞 {client.phone}</a></div>}
       </section>
@@ -525,7 +504,7 @@ function OrderDetailSection({ order, clients }) {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <InfoRow2 label="Ημερομηνία" value={formatDateString(order.orderDate)} />
-          <InfoRow2 label="Αναμ. Επαναληπτική" value={formatDateString(order.expectedReorderDate)} />
+          <InfoRow2 label="Επαναληπτική" value={formatDateString(order.expectedReorderDate)} />
           <InfoRow2 label="Λήξη Πληρωμής" value={formatDateString(order.paymentDeadlineDate)} />
           <InfoRow2 label="Προϊόν" value={order.product} />
           <InfoRow2 label="Ποσότητα" value={order.amount ? `${order.amount} παλέτες` : null} />
