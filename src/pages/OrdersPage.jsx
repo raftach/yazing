@@ -55,7 +55,7 @@ export default function OrdersPage({ onGoToAddClient }) {
       // Find the most recent order for this client with the exact same product name
       const lastOrder = [...(orders || [])]
         .filter(o => o.clientId === form.clientId && o.product && o.product.trim().toLowerCase() === match)
-        .sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+        .sort((a,b) => new Date(b.orderDate || b.createdAt) - new Date(a.orderDate || a.createdAt))[0];
         
       if (lastOrder && lastOrder.agreedPrice !== undefined && lastOrder.agreedPrice !== '') {
         setForm(f => ({ ...f, agreedPrice: lastOrder.agreedPrice }));
@@ -204,7 +204,7 @@ export default function OrdersPage({ onGoToAddClient }) {
                 </div>
                 {order.deliveryPlace && <span className="list-item-sub" style={{ fontSize: '12px' }}>📍 {order.deliveryPlace}</span>}
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  {formatDate(order.createdAt)}
+                  {formatDate(order.orderDate || order.createdAt)}
                 </span>
               </div>
             );
