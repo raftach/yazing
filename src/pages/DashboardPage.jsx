@@ -3,7 +3,7 @@ import { useApp } from '../AppContext';
 import { LayoutDashboard, TrendingUp, Package, ChevronRight } from 'lucide-react';
 
 export default function DashboardPage({ onGoToOrders }) {
-  const { orders, clients } = useApp();
+  const { orders } = useApp();
   const [selectedMonth, setSelectedMonth] = useState('');
 
   const activeOrders = useMemo(() => (orders || []).filter(o => !o.archived), [orders]);
@@ -59,20 +59,12 @@ export default function DashboardPage({ onGoToOrders }) {
   }, [activeOrders, selectedMonth]);
 
   const overallStats = useMemo(() => {
-    return { total: activeOrders.length };
+    return { total: activeOrders.reduce((acc, o) => acc + (parseInt(o.amount, 10) || 0), 0) };
   }, [activeOrders]);
 
   const stats = useMemo(() => {
-    return { total: filteredOrders.length };
+    return { total: filteredOrders.reduce((acc, o) => acc + (parseInt(o.amount, 10) || 0), 0) };
   }, [filteredOrders]);
-
-  const recentOrders = useMemo(() => {
-    return [...activeOrders]
-      .sort((a, b) => new Date(b.orderDate || b.createdAt) - new Date(a.orderDate || a.createdAt))
-      .slice(0, 5);
-  }, [activeOrders]);
-
-  const getClientName = (id) => (clients || []).find(c => c.id === id)?.name || '—';
 
   return (
     <div className="page-wrapper" style={{ paddingBottom: '90px' }}>
@@ -108,7 +100,7 @@ export default function DashboardPage({ onGoToOrders }) {
         <div style={{ display: 'grid', gridTemplateColumns: selectedMonth ? '1fr 1fr' : '1fr', gap: '12px' }}>
           <div className="stat-card" style={{ padding: '16px', background: 'var(--bg-elevated)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)' }}>
-              <LayoutDashboard size={15} /> <span style={{ fontSize: '12px', fontWeight: 600 }}>ΣΥΝΟΛΙΚΕΣ ΠΑΡΑΓΓΕΛΙΕΣ</span>
+              <LayoutDashboard size={15} /> <span style={{ fontSize: '12px', fontWeight: 600 }}>ΣΥΝΟΛΙΚΕΣ ΠΑΛΕΤΕΣ</span>
             </div>
             <div style={{ fontSize: '22px', fontWeight: 800, marginTop: 8 }}>
               {overallStats.total}
@@ -118,7 +110,7 @@ export default function DashboardPage({ onGoToOrders }) {
           {selectedMonth && (
             <div className="stat-card" style={{ padding: '16px', background: 'var(--accent-soft)', border: '1px solid rgba(79,142,247,0.3)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent)' }}>
-                <Package size={15} /> <span style={{ fontSize: '12px', fontWeight: 600 }}>ΠΑΡΑΓΓΕΛΙΕΣ ({selectedLabel})</span>
+                <Package size={15} /> <span style={{ fontSize: '12px', fontWeight: 600 }}>ΠΑΛΕΤΕΣ ({selectedLabel})</span>
               </div>
               <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--accent)', marginTop: 8 }}>
                 {stats.total}
@@ -127,46 +119,7 @@ export default function DashboardPage({ onGoToOrders }) {
           )}
         </div>
 
-        {/* Recent Orders */}
-        <section>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-            <div className="section-label" style={{ marginBottom: 0 }}>Πρόσφατες Παραγγελίες</div>
-            {onGoToOrders && (
-              <button 
-                onClick={onGoToOrders}
-                style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '13px', fontWeight: 600, display: 'flex', alignItems: 'center', cursor: 'pointer' }}
-              >
-                Όλες <ChevronRight size={14} />
-              </button>
-            )}
-          </div>
-          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            {recentOrders.length === 0 ? (
-              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
-                Δεν υπάρχουν πρόσφατες παραγγελίες
-              </div>
-            ) : (
-              recentOrders.map((o, i) => (
-                <div key={o.id} style={{ 
-                  padding: '12px 14px', 
-                  borderBottom: i < recentOrders.length - 1 ? '1px solid var(--border)' : 'none'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ fontSize: '14px', fontWeight: 600 }}>{getClientName(o.clientId)}</span>
-                    <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)' }}>{o.totalPrice ? `${parseFloat(o.totalPrice).toFixed(2)}€` : '—'}</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px', color: 'var(--text-muted)' }}>
-                    <Package size={12} /> {o.product || '—'} 
-                    {(o.amount || o.agreedPrice) && <span style={{ opacity: 0.5 }}>|</span>}
-                    {o.amount ? ` Ποσ.: ${o.amount}` : ''}
-                    {(o.amount && o.agreedPrice) ? <span style={{ opacity: 0.5 }}>|</span> : ''}
-                    {o.agreedPrice ? ` Μονάδα: ${o.agreedPrice}€` : ''}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
+
 
         {/* Data & Security Section */}
         <section>
