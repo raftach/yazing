@@ -286,6 +286,7 @@ select option {
   z-index: 50; /* Lower z-index so modals can easily go on top */
 }
 .nav-item {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;

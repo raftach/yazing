@@ -124,21 +124,21 @@ export default function BlacklistPage() {
             <div className="modal-sheet-body">
               <div className="form-group">
                 <label className="form-label">Ονοματεπώνυμο / Εταιρεία *</label>
-                <input 
-                  value={form.name} 
-                  onChange={e => setForm(f => ({...f, name: e.target.value}))} 
-                  placeholder="Εισάγετε όνομα" 
+                <input
+                  value={form.name}
+                  onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                  placeholder="Εισάγετε όνομα"
                 />
                 {errors.name && <span style={{ color: 'var(--danger)', fontSize: 12 }}>{errors.name}</span>}
               </div>
               <div className="form-group">
                 <label className="form-label">Σχόλιο / Λόγος</label>
-                <textarea 
-                  rows={4} 
-                  value={form.comment} 
-                  onChange={e => setForm(f => ({...f, comment: e.target.value}))} 
-                  placeholder="Ελεύθερο κείμενο..." 
-                  style={{ resize: 'none' }} 
+                <textarea
+                  rows={4}
+                  value={form.comment}
+                  onChange={e => setForm(f => ({ ...f, comment: e.target.value }))}
+                  placeholder="Ελεύθερο κείμενο..."
+                  style={{ resize: 'none' }}
                 />
               </div>
             </div>

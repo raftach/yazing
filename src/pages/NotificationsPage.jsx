@@ -143,14 +143,14 @@ export default function NotificationsPage({ onGoToOrders }) {
                   {/* Actions Row */}
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' }}>
                     {activeTab === 'reorders' && (
-                      <button 
-                        className="btn btn-secondary btn-sm" 
-                        onClick={() => handleSnooze(notif.orderId, notif.dateField)}
-                        title="Αναβολή για 30 ημέρες"
-                        style={{ padding: '4px 10px', fontSize: '12px' }}
-                      >
-                        <AlarmClock size={13} style={{ marginRight: 4 }} /> Αναβολή
-                      </button>
+                       <button 
+                         className="btn btn-secondary btn-sm" 
+                         onClick={() => handleSnooze(notif.orderId, notif.dateField)}
+                         title="Αναβολή για 30 ημέρες"
+                         style={{ padding: '4px 10px', fontSize: '12px' }}
+                       >
+                         <AlarmClock size={13} style={{ marginRight: 4 }} /> Αναβολή
+                       </button>
                     )}
                     <button 
                       className="btn btn-secondary btn-sm" 
@@ -160,16 +160,6 @@ export default function NotificationsPage({ onGoToOrders }) {
                     >
                       <Trash2 size={13} />
                     </button>
-                    {onGoToOrders && (
-                      <button 
-                        className="btn btn-secondary btn-sm" 
-                        onClick={onGoToOrders}
-                        title="Προβολή παραγγελιών"
-                        style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--accent)' }}
-                      >
-                        <ArrowRight size={13} />
-                      </button>
-                    )}
                   </div>
                 </div>
               );

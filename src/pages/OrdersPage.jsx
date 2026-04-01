@@ -77,16 +77,19 @@ export default function OrdersPage({ onGoToAddClient }) {
 
   const getList = () => {
     const list = tab === 'active' ? activeOrders : archivedOrders;
-    if (!search) return list;
-    const s = search.toLowerCase();
-    return list.filter(o => {
-      const client = (clients || []).find(c => c.id === o.clientId);
-      return (
-        (client?.name || '').toLowerCase().includes(s) ||
-        (o.product || '').toLowerCase().includes(s) ||
-        (o.deliveryPlace || '').toLowerCase().includes(s)
-      );
-    });
+    let result = list;
+    if (search) {
+      const s = search.toLowerCase();
+      result = list.filter(o => {
+        const client = (clients || []).find(c => c.id === o.clientId);
+        return (
+          (client?.name || '').toLowerCase().includes(s) ||
+          (o.product || '').toLowerCase().includes(s) ||
+          (o.deliveryPlace || '').toLowerCase().includes(s)
+        );
+      });
+    }
+    return result.sort((a, b) => new Date(b.orderDate || b.createdAt) - new Date(a.orderDate || a.createdAt));
   };
 
   const filteredOrders = getList();
@@ -192,7 +195,11 @@ export default function OrdersPage({ onGoToAddClient }) {
                 </div>
                 <div className="list-item-row">
                   <span className="list-item-sub" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Package size={12} /> {order.product || '—'} {parseInt(order.amount) > 0 ? `(${order.amount} παλέτες)` : ''}
+                    <Package size={12} /> {order.product || '—'} 
+                    {(order.amount || order.agreedPrice) && <span style={{ opacity: 0.5, marginLeft: 4 }}>|</span>}
+                    {order.amount ? <span style={{ marginLeft: 4 }}>Ποσ.: {order.amount}</span> : ''}
+                    {(order.amount && order.agreedPrice) ? <span style={{ opacity: 0.5, marginLeft: 2 }}>|</span> : ''}
+                    {order.agreedPrice ? <span style={{ marginLeft: 2 }}>Μονάδα: {order.agreedPrice}€</span> : ''}
                   </span>
                 </div>
                 {order.deliveryPlace && <span className="list-item-sub" style={{ fontSize: '12px' }}>📍 {order.deliveryPlace}</span>}
@@ -259,7 +266,10 @@ export default function OrdersPage({ onGoToAddClient }) {
                   <div style={{ flex: 1 }}>
                     <Combobox
                       value={form.clientId}
-                      onChange={val => setForm(f => ({ ...f, clientId: val }))}
+                      onChange={val => {
+                        const client = clients.find(c => c.id === val);
+                        setForm(f => ({ ...f, clientId: val, paymentOption: client?.defaultPaymentOption || '1month' }));
+                      }}
                       options={clientOptions}
                       placeholder="Αναζήτηση πελάτη..."
                     />
@@ -294,7 +304,7 @@ export default function OrdersPage({ onGoToAddClient }) {
                   type="text"
                   value={form.product}
                   onChange={e => {
-                    const val = e.target.value.toUpperCase().replace(/[^A-Z0-9\u0370-\u03FF \-]/g, '');
+                    const val = e.target.value.toUpperCase().replace(/[^A-Z0-9\u0370-\u03FF \-\.]/g, '');
                     setForm(f => ({ ...f, product: val }));
                   }}
                   placeholder="Εισαγωγή προϊόντος..."

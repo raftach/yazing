@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '../AppContext';
 import { Search, Plus, User, Phone, Mail, MapPin, FileText, Pencil, Trash2, X, Check, History, Tag, CalendarClock } from 'lucide-react';
 
-const EMPTY_CLIENT = { name: '', contactPerson: '', phone: '', email: '', address: '', notes: '' };
+const EMPTY_CLIENT = { name: '', contactPerson: '', phone: '', email: '', address: '', notes: '', defaultPaymentOption: '1month' };
 
 export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
   const { clients, orders, addClient, updateClient, deleteClient } = useApp();
@@ -14,7 +14,7 @@ export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
   const [errors, setErrors] = useState({});
 
   const clientOrders = viewClient 
-    ? (orders || []).filter(o => o.clientId === viewClient.id).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt)) 
+    ? (orders || []).filter(o => o.clientId === viewClient.id).sort((a,b) => new Date(b.orderDate || b.createdAt) - new Date(a.orderDate || a.createdAt)) 
     : [];
 
   // Find latest payment deadline and latest expected reorder date
@@ -216,7 +216,7 @@ export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
                       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
                         <span>Ποσ.: {o.amount} | Μονάδα: {o.agreedPrice}€</span>
                         <span>{(() => {
-                          const d = new Date(o.createdAt);
+                          const d = new Date(o.orderDate || o.createdAt);
                           return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
                         })()}</span>
                       </div>
@@ -292,6 +292,15 @@ export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
               <div className="form-group">
                 <label className="form-label">Διεύθυνση / Έδρα</label>
                 <input value={form.address} onChange={e => setForm(f => ({...f, address: e.target.value}))} placeholder="Οδός, Αριθμός, Πόλη" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Προεπιλεγμένη Λήξη Πληρωμής</label>
+                <select value={form.defaultPaymentOption || '1month'} onChange={e => setForm(f => ({...f, defaultPaymentOption: e.target.value}))}>
+                  <option value="1month">1 Μήνας</option>
+                  <option value="2months">2 Μήνες</option>
+                  <option value="3months">3 Μήνες</option>
+                  <option value="custom">Προσαρμοσμένο</option>
+                </select>
               </div>
               <div className="form-group">
                 <label className="form-label">Σημειώσεις</label>

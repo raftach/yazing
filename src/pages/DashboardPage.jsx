@@ -68,7 +68,7 @@ export default function DashboardPage({ onGoToOrders }) {
 
   const recentOrders = useMemo(() => {
     return [...activeOrders]
-      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .sort((a, b) => new Date(b.orderDate || b.createdAt) - new Date(a.orderDate || a.createdAt))
       .slice(0, 5);
   }, [activeOrders]);
 
@@ -156,7 +156,11 @@ export default function DashboardPage({ onGoToOrders }) {
                     <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--accent)' }}>{o.totalPrice ? `${parseFloat(o.totalPrice).toFixed(2)}€` : '—'}</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '12px', color: 'var(--text-muted)' }}>
-                    <Package size={12} /> {o.product || '—'}
+                    <Package size={12} /> {o.product || '—'} 
+                    {(o.amount || o.agreedPrice) && <span style={{ opacity: 0.5 }}>|</span>}
+                    {o.amount ? ` Ποσ.: ${o.amount}` : ''}
+                    {(o.amount && o.agreedPrice) ? <span style={{ opacity: 0.5 }}>|</span> : ''}
+                    {o.agreedPrice ? ` Μονάδα: ${o.agreedPrice}€` : ''}
                   </div>
                 </div>
               ))
