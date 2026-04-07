@@ -155,16 +155,6 @@ export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
               <div className="list-item-row">
                 <span className="list-item-title">{client.name}</span>
               </div>
-              {client.contactPerson && (
-                <div className="list-item-sub" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <User size={12} /> {client.contactPerson}
-                </div>
-              )}
-              {client.phone && (
-                <div className="list-item-sub" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <Phone size={12} /> {client.phone}
-                </div>
-              )}
             </div>
           ))
         )}
