@@ -1,25 +1,26 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Search, ChevronDown, Check } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 
-export default function Combobox({ 
-  value, 
-  onChange, 
-  options, 
-  placeholder = "Επιλέξτε..." 
+export default function Combobox({
+  id,
+  value,
+  onChange,
+  options,
+  placeholder = 'Επιλέξτε...'
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const wrapperRef = useRef(null);
-  
-  // Close on outside click
+
+  // Close on outside tap
   useEffect(() => {
     function handleClickOutside(event) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
         setIsOpen(false);
       }
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('pointerdown', handleClickOutside);
+    return () => document.removeEventListener('pointerdown', handleClickOutside);
   }, []);
 
   const selectedOption = useMemo(() => (options || []).find(o => o.id === value), [options, value]);
@@ -28,116 +29,43 @@ export default function Combobox({
     const opts = options || [];
     if (!search.trim()) return opts;
     const s = search.toLowerCase();
-    return opts.filter(o => {
-       const content = o.searchContent || `${o.title} ${o.subtitle || ''}`;
-       return content.toLowerCase().includes(s);
-    });
+    return opts.filter(o => (o.searchContent || `${o.title} ${o.subtitle || ''}`).toLowerCase().includes(s));
   }, [options, search]);
 
   return (
-    <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
-      {/* Trigger Button */}
-      <button 
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        style={{
-          width: '100%',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '0 12px',
-          background: 'var(--bg-card)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-md)',
-          textAlign: 'left',
-          color: selectedOption ? 'var(--text-base)' : 'var(--text-muted)',
-          fontSize: '14px',
-          cursor: 'pointer',
-          height: '44px'
-        }}
-      >
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {selectedOption ? selectedOption.title : placeholder}
-        </span>
-        <ChevronDown size={14} style={{ opacity: 0.5, flexShrink: 0 }} />
+    <div ref={wrapperRef} className="combo">
+      <button type="button" id={id} className="combo-trigger" onClick={() => setIsOpen(!isOpen)} aria-expanded={isOpen}>
+        <span className={selectedOption ? '' : 'ph'}>{selectedOption ? selectedOption.title : placeholder}</span>
+        <ChevronDown size={16} style={{ opacity: 0.5, flexShrink: 0 }} />
       </button>
 
-      {/* Dropdown Menu */}
       {isOpen && (
-        <div style={{
-          position: 'absolute',
-          top: '100%',
-          left: 0,
-          right: 0,
-          marginTop: '4px',
-          background: 'var(--bg-elevated)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-md)',
-          boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-          zIndex: 1000,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          maxHeight: '300px'
-        }}>
-          {/* Search Input */}
-          <div style={{ padding: '8px', borderBottom: '1px solid var(--border)', position: 'relative' }}>
-            <Search size={14} style={{ position: 'absolute', left: '16px', top: '16px', color: 'var(--text-muted)' }} />
-            <input 
-              autoFocus
-              type="text" 
-              placeholder="Αναζήτηση..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '8px 8px 8px 30px',
-                border: 'none',
-                background: 'var(--bg-base)',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '13px',
-                color: 'var(--text-base)'
-              }}
-            />
-          </div>
-
-          {/* Options List */}
-          <div style={{ overflowY: 'auto', flex: 1, padding: '4px' }}>
+        <div className="combo-pop">
+          <input
+            autoFocus
+            type="text"
+            placeholder="Αναζήτηση..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+          <div className="combo-list">
             {filteredOptions.length === 0 ? (
-              <div style={{ padding: '12px', textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)' }}>
-                Δεν βρέθηκαν αποτελέσματα.
-              </div>
+              <div className="hint" style={{ padding: 12, textAlign: 'center' }}>Δεν βρέθηκαν αποτελέσματα.</div>
             ) : (
               filteredOptions.map(opt => (
-                <div 
+                <button
+                  type="button"
                   key={opt.id}
+                  className={`combo-opt${value === opt.id ? ' on' : ''}`}
                   onClick={() => {
                     onChange(opt.id);
                     setIsOpen(false);
                     setSearch('');
                   }}
-                  style={{
-                    padding: '8px 10px',
-                    borderRadius: 'var(--radius-sm)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    background: value === opt.id ? 'var(--accent-soft)' : 'transparent',
-                  }}
-                  onMouseEnter={e => { if(value !== opt.id) e.currentTarget.style.background = 'var(--bg-card)'; }}
-                  onMouseLeave={e => { if(value !== opt.id) e.currentTarget.style.background = 'transparent'; }}
                 >
-                  <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                     <span style={{ fontSize: '13px', fontWeight: value === opt.id ? 600 : 400, color: value === opt.id ? 'var(--accent)' : 'var(--text-base)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {opt.title}
-                     </span>
-                     {opt.subtitle && (
-                       <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{opt.subtitle}</span>
-                     )}
-                  </div>
-                  {value === opt.id && <Check size={14} color="var(--accent)" style={{ flexShrink: 0, marginLeft: 8 }} />}
-                </div>
+                  <b>{opt.title}</b>
+                  {opt.subtitle && <small>{opt.subtitle}</small>}
+                </button>
               ))
             )}
           </div>

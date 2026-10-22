@@ -22,3 +22,21 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Claude Code config/session files (this folder doubles as a Claude config dir) — never commit
+.claude.json
+.credentials.json
+.last-cleanup
+backups/
+cache/
+file-history/
+ide/
+plugins/
+projects/
+sessions/
+session-env/
+shell-snapshots/
+skills/
+
+# App data exports (contain client data)
+*backup*.json

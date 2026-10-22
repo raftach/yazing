@@ -1,548 +1,103 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
+import { Plus, Search } from 'lucide-react';
 import { useApp } from '../AppContext';
-import {
-  Search, Plus, X, Check, Pencil, Archive, RotateCcw, Trash2,
-  ChevronRight, ClipboardList, UserPlus, Package, CalendarPlus
-} from 'lucide-react';
-import Combobox from '../components/Combobox';
+import { useUI, orderStatus, pallets, money } from '../ui';
+import { monthLabel, weekdayShort } from '../lib/dates';
 
-const PAYMENT_OPTIONS = [
-  { value: '1month', label: '1 Μήνας' },
-  { value: '2months', label: '2 Μήνες' },
-  { value: '3months', label: '3 Μήνες' },
-  { value: 'custom', label: 'Προσαρμοσμένο' },
+const FILTERS = [
+  { id: 'active', label: 'Ενεργές', test: o => !o.archived },
+  { id: 'unpaid', label: 'Απλήρωτες', test: o => !o.archived && !o.paid },
+  { id: 'paid', label: 'Εξοφλημένες', test: o => !o.archived && o.paid },
+  { id: 'archived', label: 'Αρχείο', test: o => o.archived },
 ];
+const PAGE = 60;
 
-const EMPTY_ORDER = {
-  clientId: '',
-  product: '',
-  amount: '',
-  agreedPrice: '',
-  paymentOption: '1month',
-  deliveryPlace: '',
-  details: '',
-  orderDate: '',
-  expectedReorderDate: '',
-  paymentDeadlineDate: '',
-};
-
-export default function OrdersPage({ onGoToAddClient }) {
-  const { orders, clients, addOrder, updateOrder, archiveOrder, restoreOrder, permanentDeleteOrder } = useApp();
+export default function OrdersPage({ initialFilter }) {
+  const { orders, clients } = useApp();
+  const { newOrder, openOrder } = useUI();
+  const [filter, setFilter] = useState(initialFilter || 'active');
   const [search, setSearch] = useState('');
-  const [tab, setTab] = useState('active'); // 'active' | 'archived'
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState(EMPTY_ORDER);
-  const [viewOrder, setViewOrder] = useState(null);
-  const [errors, setErrors] = useState({});
+  const [limit, setLimit] = useState(PAGE);
 
-  const activeOrders = useMemo(() => (orders || []).filter(o => !o.archived), [orders]);
-  const archivedOrders = useMemo(() => (orders || []).filter(o => o.archived), [orders]);
+  const clientById = useMemo(() => new Map(clients.map(c => [c.id, c])), [clients]);
 
-  const clientOptions = useMemo(() => (clients || []).map(c => ({
-    id: c.id,
-    title: c.name,
-    subtitle: c.phone ? `Τηλ: ${c.phone}` : '',
-    searchContent: `${c.name} ${c.phone || ''}`
-  })), [clients]);
+  const counts = useMemo(() => Object.fromEntries(FILTERS.map(f => [f.id, orders.filter(f.test).length])), [orders]);
 
-  // Auto-fill price based on previous orders of the same product for this client
-  useEffect(() => {
-    if (editingId) return; // Only auto-fill for new, non-editing orders
-    
-    if (form.clientId && form.product.trim()) {
-      const match = form.product.trim().toLowerCase();
-      // Find the most recent order for this client with the exact same product name
-      const lastOrder = [...(orders || [])]
-        .filter(o => o.clientId === form.clientId && o.product && o.product.trim().toLowerCase() === match)
-        .sort((a,b) => new Date(b.orderDate || b.createdAt) - new Date(a.orderDate || a.createdAt))[0];
-        
-      if (lastOrder && lastOrder.agreedPrice !== undefined && lastOrder.agreedPrice !== '') {
-        setForm(f => ({ ...f, agreedPrice: lastOrder.agreedPrice }));
-      }
+  const list = useMemo(() => {
+    const f = FILTERS.find(x => x.id === filter);
+    const s = search.trim().toLowerCase();
+    return orders
+      .filter(f.test)
+      .filter(o => !s || [clientById.get(o.clientId)?.name, o.product, o.deliveryPlace, o.details]
+        .some(v => (v || '').toLowerCase().includes(s)))
+      .sort((a, b) => (b.orderDate || '').localeCompare(a.orderDate || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
+  }, [orders, filter, search, clientById]);
+
+  const groups = useMemo(() => {
+    const out = [];
+    for (const o of list.slice(0, limit)) {
+      const ym = (o.orderDate || '').slice(0, 7);
+      let g = out[out.length - 1];
+      if (!g || g.ym !== ym) { g = { ym, orders: [] }; out.push(g); }
+      g.orders.push(o);
     }
-  }, [form.clientId, form.product]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Auto-calculate payment deadline
-  useEffect(() => {
-    if (form.paymentOption === 'custom' || !form.orderDate) return;
-    
-    const d = new Date(form.orderDate);
-    if (form.paymentOption === '1month') d.setMonth(d.getMonth() + 1);
-    else if (form.paymentOption === '2months') d.setMonth(d.getMonth() + 2);
-    else if (form.paymentOption === '3months') d.setMonth(d.getMonth() + 3);
-    
-    setForm(f => ({ ...f, paymentDeadlineDate: d.toISOString().split('T')[0] }));
-  }, [form.paymentOption, form.orderDate]);
-
-  const getList = () => {
-    const list = tab === 'active' ? activeOrders : archivedOrders;
-    let result = list;
-    if (search) {
-      const s = search.toLowerCase();
-      result = list.filter(o => {
-        const client = (clients || []).find(c => c.id === o.clientId);
-        return (
-          (client?.name || '').toLowerCase().includes(s) ||
-          (o.product || '').toLowerCase().includes(s) ||
-          (o.deliveryPlace || '').toLowerCase().includes(s)
-        );
-      });
-    }
-    return result.sort((a, b) => new Date(b.orderDate || b.createdAt) - new Date(a.orderDate || a.createdAt));
-  };
-
-  const filteredOrders = getList();
-
-  const openAdd = () => {
-    const today = new Date();
-    const orderDateStr = today.toISOString().split('T')[0];
-    const reorderDate = new Date(today);
-    reorderDate.setMonth(today.getMonth() + 1);
-    const expectedReorderDate = reorderDate.toISOString().split('T')[0];
-
-    setForm({ ...EMPTY_ORDER, orderDate: orderDateStr, expectedReorderDate });
-    setEditingId(null);
-    setErrors({});
-    setShowForm(true);
-    setViewOrder(null);
-  };
-
-  const openEdit = (order) => {
-    setForm({
-      clientId: order.clientId || '',
-      product: order.product || '',
-      amount: order.amount || '',
-      agreedPrice: order.agreedPrice || '',
-      paymentOption: order.paymentOption || '1month',
-      deliveryPlace: order.deliveryPlace || '',
-      details: order.details || '',
-      orderDate: order.orderDate || '',
-      expectedReorderDate: order.expectedReorderDate || '',
-      paymentDeadlineDate: order.paymentDeadlineDate || '',
-    });
-    setEditingId(order.id);
-    setErrors({});
-    setShowForm(true);
-    setViewOrder(null);
-  };
-
-  const validate = () => {
-    const e = {};
-    if (!form.clientId) e.clientId = 'Επιλέξτε πελάτη';
-    if (!form.product.trim()) e.product = 'Απαιτείται προϊόν';
-    if (form.agreedPrice === '' || form.agreedPrice === null || form.agreedPrice === undefined) {
-      e.agreedPrice = 'Απαιτείται τιμή (βάλτε 0 αν είναι δωρεάν)';
-    }
-    return e;
-  };
-
-  const handleSave = () => {
-    const e = validate();
-    if (Object.keys(e).length) { setErrors(e); return; }
-    const payload = { ...form };
-    if (editingId) updateOrder(editingId, payload);
-    else addOrder(payload);
-    setShowForm(false);
-  };
-
-  const getClientName = (id) => (clients || []).find(c => c.id === id)?.name || '—';
-
-  const formatDate = (iso) => {
-    if (!iso) return '';
-    let ymd = iso;
-    if (ymd.includes('T')) ymd = ymd.split('T')[0];
-    const [y, m, d] = ymd.split('-');
-    if (!y || !m || !d) return iso;
-    return `${d}/${m}/${y}`;
-  };
+    // month totals use the full filtered list, not only the visible page
+    const totals = {};
+    list.forEach(o => { const ym = (o.orderDate || '').slice(0, 7); totals[ym] = (totals[ym] || 0) + pallets(o); });
+    return out.map(g => ({ ...g, total: totals[g.ym] }));
+  }, [list, limit]);
 
   return (
-    <div className="page-wrapper">
-      <div className="page-header">
-        <div className="page-title-row">
+    <div className="page">
+      <header className="head">
+        <div className="head-row">
           <h1>Παραγγελίες</h1>
-          <button className="btn btn-primary btn-sm" onClick={openAdd}>
-            <Plus size={15} /> Νέα
-          </button>
+          <button className="fab" aria-label="Νέα παραγγελία" onClick={() => newOrder()}><Plus size={22} /></button>
         </div>
-        <div className="search-bar">
-          <Search size={16} className="search-icon" />
-          <input type="search" placeholder="Αναζήτηση παραγγελίας..." value={search} onChange={e => setSearch(e.target.value)} />
+        <label className="search">
+          <Search size={16} />
+          <input id="orders-search" type="search" placeholder="Πελάτης, προϊόν, τόπος…" value={search}
+            onChange={e => { setSearch(e.target.value); setLimit(PAGE); }} />
+        </label>
+        <div className="chips" role="group" aria-label="Φίλτρο">
+          {FILTERS.map(f => (
+            <button key={f.id} className={`chip${filter === f.id ? ' on' : ''}`} onClick={() => { setFilter(f.id); setLimit(PAGE); }}>
+              {f.label}<span className="n">{counts[f.id]}</span>
+            </button>
+          ))}
         </div>
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-          <TabBtn active={tab === 'active'} onClick={() => setTab('active')} count={activeOrders.length}>Ενεργές</TabBtn>
-          <TabBtn active={tab === 'archived'} onClick={() => setTab('archived')} count={archivedOrders.length}>Αρχείο</TabBtn>
-        </div>
-      </div>
+      </header>
 
-      <div className="page-content">
-        {filteredOrders.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state-icon"><ClipboardList size={28} /></div>
-            <div className="empty-state-title">{tab === 'archived' ? 'Δεν υπάρχουν αρχειοθετημένες' : 'Δεν υπάρχουν παραγγελίες'}</div>
-            <div className="empty-state-sub">
-              {tab === 'active' ? 'Δημιουργήστε την πρώτη παραγγελία πατώντας "Νέα"' : 'Οι αρχειοθετημένες παραγγελίες θα εμφανιστούν εδώ'}
-            </div>
+      <div className="body">
+        {list.length === 0 ? (
+          <div className="empty">
+            <b>{search ? 'Δεν βρέθηκαν παραγγελίες' : filter === 'archived' ? 'Το αρχείο είναι άδειο' : 'Δεν υπάρχουν παραγγελίες'}</b>
+            {!search && filter === 'active' && <button className="btn btn-go" onClick={() => newOrder()}>Νέα παραγγελία</button>}
           </div>
         ) : (
-          filteredOrders.map(order => {
-            return (
-              <div key={order.id} className="list-item" onClick={() => setViewOrder(order)}>
-                <div className="list-item-row" style={{ marginBottom: 4 }}>
-                  <span className="list-item-title">{getClientName(order.clientId)}</span>
-                </div>
-                <div className="list-item-row">
-                  <span className="list-item-sub" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <Package size={12} /> {order.product || '—'} 
-                    {(order.amount || order.agreedPrice) && <span style={{ opacity: 0.5, marginLeft: 4 }}>|</span>}
-                    {order.amount ? <span style={{ marginLeft: 4 }}>Ποσ.: {order.amount}</span> : ''}
-                    {(order.amount && order.agreedPrice) ? <span style={{ opacity: 0.5, marginLeft: 2 }}>|</span> : ''}
-                    {order.agreedPrice ? <span style={{ marginLeft: 2 }}>Μονάδα: {order.agreedPrice}€</span> : ''}
-                  </span>
-                </div>
-                {order.deliveryPlace && <span className="list-item-sub" style={{ fontSize: '12px' }}>📍 {order.deliveryPlace}</span>}
-                <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  {formatDate(order.orderDate || order.createdAt)}
-                </span>
-              </div>
-            );
-          })
+          <>
+            {groups.map(g => (
+              <section className="month-block" key={g.ym || 'none'}>
+                <div className="month"><span>{g.ym ? monthLabel(g.ym).toUpperCase() : 'ΧΩΡΙΣ ΗΜΕΡΟΜΗΝΙΑ'}</span><span>{g.total} παλ.</span></div>
+                {g.orders.map(o => {
+                  const st = orderStatus(o);
+                  return (
+                    <button key={o.id} className="order" onClick={() => openOrder(o.id)}>
+                      <span className="day"><b>{(o.orderDate || '').slice(8, 10) || '—'}</b><small>{weekdayShort(o.orderDate)}</small></span>
+                      <span className="who">{clientById.get(o.clientId)?.name || 'Άγνωστος πελάτης'}</span>
+                      <span className="prod">{o.product}<span className={`pill ${st.cls}`}>{st.text}</span></span>
+                      <span className="qty"><b>{o.amount || '—'}</b><small>{o.agreedPrice !== '' ? money(parseFloat(o.agreedPrice)) : '—'}</small></span>
+                    </button>
+                  );
+                })}
+              </section>
+            ))}
+            {list.length > limit && (
+              <button className="btn btn-quiet" onClick={() => setLimit(l => l + PAGE)}>Περισσότερες ({list.length - limit})</button>
+            )}
+          </>
         )}
       </div>
-
-      {/* Order Detail Sheet */}
-      {viewOrder && (
-        <div className="modal-overlay" onClick={() => setViewOrder(null)}>
-          <div className="modal-sheet" onClick={e => e.stopPropagation()}>
-            <div className="modal-sheet-handle" />
-            <div className="modal-sheet-header">
-              <span className="modal-sheet-title">Λεπτομέρειες Παραγγελίας</span>
-              <button className="btn-icon" onClick={() => setViewOrder(null)}><X size={16} /></button>
-            </div>
-            <div className="modal-sheet-body">
-              <OrderDetailSection order={viewOrder} clients={clients} />
-            </div>
-            <div className="modal-sheet-footer" style={{ flexWrap: 'wrap', gap: '8px' }}>
-              {!viewOrder.archived ? (
-                <>
-                  <button className="btn btn-danger btn-sm" onClick={() => { archiveOrder(viewOrder.id); setViewOrder(null); }}>
-                    <Archive size={13} /> Αρχείο
-                  </button>
-                  <button className="btn btn-secondary btn-sm" onClick={() => openEdit(viewOrder)}>
-                    <Pencil size={13} /> Επεξεργασία
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button className="btn btn-secondary btn-sm" onClick={() => { restoreOrder(viewOrder.id); setViewOrder(null); }}>
-                    <RotateCcw size={13} /> Επαναφορά
-                  </button>
-                  <button className="btn btn-danger btn-sm" onClick={() => { permanentDeleteOrder(viewOrder.id); setViewOrder(null); }}>
-                    <Trash2 size={13} /> Οριστική Διαγραφή
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* New/Edit Order Form Sheet */}
-      {showForm && (
-        <div className="modal-overlay" onClick={() => setShowForm(false)}>
-          <div className="modal-sheet" onClick={e => e.stopPropagation()}>
-            <div className="modal-sheet-handle" />
-            <div className="modal-sheet-header">
-              <span className="modal-sheet-title">{editingId ? 'Επεξεργασία Παραγγελίας' : 'Νέα Παραγγελία'}</span>
-              <button className="btn-icon" onClick={() => setShowForm(false)}><X size={16} /></button>
-            </div>
-            <div className="modal-sheet-body">
-              {/* Client picker */}
-              <div className="form-group">
-                <label className="form-label">Πελάτης *</label>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <div style={{ flex: 1 }}>
-                    <Combobox
-                      value={form.clientId}
-                      onChange={val => {
-                        const client = clients.find(c => c.id === val);
-                        setForm(f => ({ ...f, clientId: val, paymentOption: client?.defaultPaymentOption || '1month' }));
-                      }}
-                      options={clientOptions}
-                      placeholder="Αναζήτηση πελάτη..."
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    className="btn-icon"
-                    title="Νέος Πελάτης"
-                    style={{ flexShrink: 0, width: 44, height: 44 }}
-                    onClick={() => { setShowForm(false); if (onGoToAddClient) onGoToAddClient(); }}
-                  >
-                    <UserPlus size={16} />
-                  </button>
-                </div>
-                {errors.clientId && <span style={{ color: 'var(--danger)', fontSize: 12 }}>{errors.clientId}</span>}
-              </div>
-
-              {/* Show client info */}
-              {form.clientId && (() => {
-                const c = clients.find(cl => cl.id === form.clientId);
-                return c ? (
-                  <div style={{ background: 'var(--accent-soft)', border: '1px solid rgba(79,142,247,0.2)', borderRadius: 'var(--radius-md)', padding: '10px 13px', marginTop: '-4px', marginBottom: '16px' }}>
-                    <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--accent)' }}>{c.name}</div>
-                    <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{c.contactPerson} · {c.phone}</div>
-                  </div>
-                ) : null;
-              })()}
-
-              <div className="form-group">
-                <label className="form-label">Προϊόν / Περιγραφή *</label>
-                <input
-                  type="text"
-                  value={form.product}
-                  onChange={e => {
-                    const val = e.target.value.toUpperCase().replace(/[^A-Z0-9\u0370-\u03FF \-\.]/g, '');
-                    setForm(f => ({ ...f, product: val }));
-                  }}
-                  placeholder="Εισαγωγή προϊόντος..."
-                />
-                {errors.product && <span style={{ color: 'var(--danger)', fontSize: 12 }}>{errors.product}</span>}
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Ημερ/νία Παραγγελίας</label>
-                  <input 
-                    type="date" 
-                    value={form.orderDate} 
-                    onChange={e => {
-                      const newOrderDate = e.target.value;
-                      if (!newOrderDate) {
-                        setForm(f => ({ ...f, orderDate: newOrderDate }));
-                        return;
-                      }
-                      const d = new Date(newOrderDate);
-                      d.setMonth(d.getMonth() + 1);
-                      setForm(f => ({ ...f, orderDate: newOrderDate, expectedReorderDate: d.toISOString().split('T')[0] }));
-                    }} 
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Επαναληπτική *</label>
-                  <input type="date" value={form.expectedReorderDate} onChange={e => setForm(f => ({ ...f, expectedReorderDate: e.target.value }))} />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Ποσότητα (Παλέτες)</label>
-                  <input 
-                    type="number" 
-                    min="0" 
-                    step="1" 
-                    value={form.amount} 
-                    onChange={e => {
-                      const val = e.target.value.replace(/[^0-9]/g, '');
-                      setForm(f => ({ ...f, amount: val }));
-                    }} 
-                    placeholder="0" 
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Τιμή Μονάδας (€) *</label>
-                  <input type="number" min="0" step="0.01" value={form.agreedPrice} onChange={e => setForm(f => ({ ...f, agreedPrice: e.target.value }))} placeholder="0.00" />
-                  {errors.agreedPrice && <span style={{ color: 'var(--danger)', fontSize: 12 }}>{errors.agreedPrice}</span>}
-                </div>
-              </div>
-
-
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Προθεσμία Πληρωμής</label>
-                  <select value={form.paymentOption} onChange={e => setForm(f => ({ ...f, paymentOption: e.target.value }))}>
-                    {PAYMENT_OPTIONS.map(p => (<option key={p.value} value={p.value}>{p.label}</option>))}
-                  </select>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Ημερ/νία Λήξης Πληρωμής</label>
-                  <input type="date" value={form.paymentDeadlineDate} onChange={e => setForm(f => ({ ...f, paymentDeadlineDate: e.target.value, paymentOption: 'custom' }))} />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Τόπος Παράδοσης</label>
-                <input value={form.deliveryPlace} onChange={e => setForm(f => ({ ...f, deliveryPlace: e.target.value }))} placeholder="Πόλη / Διεύθυνση" />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Λεπτομέρειες / Σημειώσεις</label>
-                <textarea rows={3} value={form.details} onChange={e => setForm(f => ({ ...f, details: e.target.value }))} placeholder="Ελεύθερο κείμενο..." style={{ resize: 'none' }} />
-              </div>
-            </div>
-            <div className="modal-sheet-footer">
-              <button className="btn btn-secondary" onClick={() => setShowForm(false)}>Ακύρωση</button>
-              <button className="btn btn-primary" style={{ flex: 2 }} onClick={handleSave}>
-                <Check size={14} /> {editingId ? 'Αποθήκευση' : 'Δημιουργία'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function TabBtn({ active, onClick, count, children }) {
-  return (
-    <button onClick={onClick} style={{
-      background: active ? 'var(--accent-soft)' : 'var(--bg-elevated)',
-      border: `1.5px solid ${active ? 'var(--accent)' : 'var(--border)'}`,
-      color: active ? 'var(--accent)' : 'var(--text-secondary)',
-      borderRadius: 'var(--radius-md)',
-      padding: '7px 14px',
-      fontFamily: 'inherit',
-      fontSize: '13px',
-      fontWeight: 600,
-      cursor: 'pointer',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '6px',
-      transition: 'all 0.2s',
-    }}>
-      {children}
-      <span style={{
-        background: active ? 'var(--accent)' : 'var(--bg-card)',
-        color: active ? '#fff' : 'var(--text-muted)',
-        borderRadius: '99px',
-        fontSize: '11px',
-        padding: '1px 7px',
-        fontWeight: 700,
-      }}>{count}</span>
-    </button>
-  );
-}
-
-function generateICS(order, client) {
-  let events = [];
-  const dtstamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-  
-  const createEvent = (summary, dateStr, description) => {
-    if (!dateStr) return '';
-    const start = dateStr.replace(/-/g, '');
-    const end = start; // all-day event
-    return `BEGIN:VEVENT
-DTSTART;VALUE=DATE:${start}
-DTEND;VALUE=DATE:${end}
-DTSTAMP:${dtstamp}
-UID:${order.id}-${start}-${Math.random().toString(36).substr(2,9)}
-SUMMARY:${summary}
-DESCRIPTION:${description}
-END:VEVENT`;
-  };
-
-  const clientName = client?.name || 'Άγνωστος πελάτης';
-  const desc = `Προϊόν: ${order.product}\\nΠοσότητα: ${order.amount}\\nΠελάτης: ${clientName}`;
-
-  if (order.orderDate) events.push(createEvent(`Παραγγελία: ${clientName}`, order.orderDate, desc));
-  if (order.expectedReorderDate) events.push(createEvent(`Επαναληπτική παραγγελία: ${clientName}`, order.expectedReorderDate, desc));
-  if (order.paymentDeadlineDate) events.push(createEvent(`Προθεσμία πληρωμής: ${clientName}`, order.paymentDeadlineDate, desc));
-
-  if (events.length === 0) {
-    alert('Δεν έχουν οριστεί ημερομηνίες για αυτή την παραγγελία.');
-    return;
-  }
-
-  const icsStr = `BEGIN:VCALENDAR
-VERSION:2.0
-PRODID:-//Yazing//Calendar Sync//EL
-CALSCALE:GREGORIAN
-${events.join('\n')}
-END:VCALENDAR`;
-
-  const blob = new Blob([icsStr], { type: 'text/calendar;charset=utf-8' });
-  const link = document.createElement('a');
-  link.href = URL.createObjectURL(blob);
-  link.download = `order-${order.id}.ics`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
-
-function OrderDetailSection({ order, clients }) {
-  const client = (clients || []).find(c => c.id === order.clientId);
-  const paymentLabel = PAYMENT_OPTIONS.find(p => p.value === order.paymentOption)?.label || order.paymentOption;
-
-  const formatDateString = (ymd) => {
-    if (!ymd) return '';
-    let iso = ymd;
-    if (iso.includes('T')) iso = iso.split('T')[0];
-    const [y, m, d] = iso.split('-');
-    if (!y || !m || !d) return ymd;
-    return `${d}/${m}/${y}`;
-  };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: '18px', fontWeight: 700 }}>
-          {order.product}
-        </span>
-      </div>
-
-      <div className="divider" />
-
-      <section>
-        <div className="section-label" style={{ marginBottom: 10 }}>Πελάτης</div>
-        <div style={{ fontSize: '16px', fontWeight: 600 }}>{client?.name || '—'}</div>
-        {client?.contactPerson && <div style={{ color: 'var(--text-secondary)', fontSize: '13px' }}>Υπεύθυνος: {client.contactPerson}</div>}
-        {client?.phone && <div style={{ fontSize: '13px' }}><a href={`tel:${client.phone}`} style={{ color: 'var(--accent)' }}>📞 {client.phone}</a></div>}
-      </section>
-
-      <div className="divider" />
-
-      <section>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <div className="section-label" style={{ marginBottom: 0 }}>Παραγγελία</div>
-          <button className="btn btn-secondary btn-sm" onClick={() => generateICS(order, client)} title="Προσθήκη στο ημερολόγιο" style={{ padding: '4px 8px', fontSize: '11px' }}>
-            <CalendarPlus size={13} style={{ marginRight: 4 }} /> Ημερολόγιο
-          </button>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <InfoRow2 label="Ημερομηνία" value={formatDateString(order.orderDate)} />
-          <InfoRow2 label="Επαναληπτική" value={formatDateString(order.expectedReorderDate)} />
-          <InfoRow2 label="Λήξη Πληρωμής" value={formatDateString(order.paymentDeadlineDate)} />
-          <InfoRow2 label="Προϊόν" value={order.product} />
-          <InfoRow2 label="Ποσότητα" value={order.amount ? `${order.amount} παλέτες` : null} />
-          <InfoRow2 label="Τιμή Μονάδας" value={order.agreedPrice ? `${order.agreedPrice}€` : null} />
-          <InfoRow2 label="Τόπος Παράδοσης" value={order.deliveryPlace} />
-          <InfoRow2 label="Πληρωμή" value={paymentLabel} />
-        </div>
-      </section>
-
-      {order.details && (
-        <>
-          <div className="divider" />
-          <section>
-            <div className="section-label" style={{ marginBottom: 6 }}>Σημειώσεις</div>
-            <div style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{order.details}</div>
-          </section>
-        </>
-      )}
-    </div>
-  );
-}
-
-function InfoRow2({ label, value }) {
-  if (!value) return null;
-  return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-      <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{label}</span>
-      <span style={{ fontSize: '14px', fontWeight: 500, textAlign: 'right' }}>{value}</span>
     </div>
   );
 }

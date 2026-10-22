@@ -17,17 +17,10 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: '20px', color: '#f87171', background: '#0a0d14', minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-          <h2 style={{ marginBottom: '10px' }}>Κάτι πήγε στραβά (Something went wrong)</h2>
-          <p style={{ fontSize: '14px', opacity: 0.8, marginBottom: '20px' }}>
-            Σφάλμα: {this.state.error?.message || "Άγνωστο σφάλμα"}
-          </p>
-          <button 
-            style={{ padding: '10px 20px', background: '#4f8ef7', color: 'white', border: 'none', borderRadius: '8px' }}
-            onClick={() => window.location.reload()}
-          >
-            Ανανέωση Σελίδας
-          </button>
+        <div className="empty" style={{ minHeight: '100dvh', justifyContent: 'center' }}>
+          <b>Κάτι πήγε στραβά</b>
+          <span>Τα δεδομένα σας δεν επηρεάζονται. Σφάλμα: {this.state.error?.message || 'Άγνωστο σφάλμα'}</span>
+          <button className="btn btn-go" onClick={() => window.location.reload()}>Επανεκκίνηση</button>
         </div>
       );
     }

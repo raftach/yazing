@@ -1,328 +1,176 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
+import { Plus, Search } from 'lucide-react';
 import { useApp } from '../AppContext';
-import { Search, Plus, User, Phone, Mail, MapPin, FileText, Pencil, Trash2, X, Check, History, Tag, CalendarClock } from 'lucide-react';
+import { useUI, orderStatus, money, pallets } from '../ui';
+import Sheet from '../components/Sheet';
+import ClientForm from '../components/ClientForm';
+import BlacklistList, { BlacklistForm } from '../components/BlacklistList';
+import { formatDate, formatShort } from '../lib/dates';
+import { productCatalog, productKey } from '../lib/products';
+import { typicalGap } from '../lib/alerts';
+import { blacklistMatch } from '../lib/names';
 
-const EMPTY_CLIENT = { name: '', contactPerson: '', phone: '', email: '', address: '', notes: '', defaultPaymentOption: '1month' };
-
-export default function ClientsPage({ onAddClientDone, autoOpenForm }) {
-  const { clients, orders, addClient, updateClient, deleteClient } = useApp();
+export default function ClientsPage() {
+  const { clients, orders, blacklist } = useApp();
+  const [view, setView] = useState('clients');
   const [search, setSearch] = useState('');
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState(EMPTY_CLIENT);
-  const [viewClient, setViewClient] = useState(null);
-  const [errors, setErrors] = useState({});
+  const [openId, setOpenId] = useState(null);
+  const [editing, setEditing] = useState(null); // client object or {} for new
+  const [addingBlacklist, setAddingBlacklist] = useState(false);
 
-  const clientOrders = viewClient 
-    ? (orders || []).filter(o => o.clientId === viewClient.id).sort((a,b) => new Date(b.orderDate || b.createdAt) - new Date(a.orderDate || a.createdAt)) 
-    : [];
-
-  // Find latest payment deadline and latest expected reorder date
-  let latestPaymentDate = null;
-  let latestReorderDate = null;
-
-  clientOrders.forEach(o => {
-    if (!o.archived) {
-      if (o.paymentDeadlineDate) {
-        if (!latestPaymentDate || new Date(o.paymentDeadlineDate) > new Date(latestPaymentDate)) {
-          latestPaymentDate = o.paymentDeadlineDate;
-        }
-      }
-      if (o.expectedReorderDate) {
-        if (!latestReorderDate || new Date(o.expectedReorderDate) > new Date(latestReorderDate)) {
-          latestReorderDate = o.expectedReorderDate;
-        }
-      }
+  const stats = useMemo(() => {
+    const m = new Map();
+    for (const o of orders) {
+      const s = m.get(o.clientId) || { count: 0, last: '' };
+      s.count++;
+      if ((o.orderDate || '') > s.last) s.last = o.orderDate;
+      m.set(o.clientId, s);
     }
-  });
+    return m;
+  }, [orders]);
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return null;
-    const d = new Date(dateStr);
-    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-  };
-
-  const clientPrices = {};
-  (clientOrders || []).forEach(o => {
-    if (o.product && o.agreedPrice) {
-      if (!clientPrices[o.product]) {
-        clientPrices[o.product] = [];
-      }
-      if (!clientPrices[o.product].includes(o.agreedPrice)) {
-         clientPrices[o.product].push(o.agreedPrice);
-      }
-    }
-  });
-
-  useEffect(() => {
-    if (autoOpenForm) {
-      setForm(EMPTY_CLIENT);
-      setEditingId(null);
-      setErrors({});
-      setShowForm(true);
-    }
-  }, [autoOpenForm]);
-
-  const filtered = (clients || []).filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.contactPerson.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const openAdd = () => {
-    setForm(EMPTY_CLIENT);
-    setEditingId(null);
-    setErrors({});
-    setShowForm(true);
-  };
-
-  const openEdit = (client) => {
-    setForm({ ...client });
-    setEditingId(client.id);
-    setErrors({});
-    setShowForm(true);
-    setViewClient(null);
-  };
-
-  const validate = () => {
-    const e = {};
-    if (!form.name.trim()) e.name = 'Απαιτείται επωνυμία';
-
-    if (form.phone && !/^\d{10}$/.test(form.phone)) {
-      e.phone = 'Το τηλέφωνο πρέπει να είναι ακριβώς 10 ψηφία';
-    }
-    return e;
-  };
-
-  const handleSave = () => {
-    const e = validate();
-    if (Object.keys(e).length) { setErrors(e); return; }
-    if (editingId) {
-      updateClient(editingId, form);
-    } else {
-      const created = addClient(form);
-      if (onAddClientDone) onAddClientDone(created);
-    }
-    setShowForm(false);
-  };
-
-  const handleDelete = (id) => {
-    deleteClient(id);
-    setViewClient(null);
-  };
+  const list = useMemo(() => {
+    const s = search.trim().toLowerCase();
+    return clients
+      .filter(c => !s || [c.name, c.contactPerson, c.phone, c.afm].some(v => (v || '').toLowerCase().includes(s)))
+      .sort((a, b) => a.name.localeCompare(b.name, 'el'));
+  }, [clients, search]);
 
   return (
-    <div className="page-wrapper">
-      <div className="page-header">
-        <div className="page-title-row">
-          <h1>Πελάτες</h1>
-          <button className="btn btn-primary btn-sm" onClick={openAdd}>
-            <Plus size={15} /> Νέος
-          </button>
+    <div className="page">
+      <header className="head">
+        <div className="head-row">
+          <h1>{view === 'clients' ? 'Πελάτες' : 'Blacklist'}</h1>
+          <button className="fab" aria-label={view === 'clients' ? 'Νέος πελάτης' : 'Νέα εγγραφή Blacklist'}
+            onClick={() => view === 'clients' ? setEditing({}) : setAddingBlacklist(true)}><Plus size={22} /></button>
         </div>
-        <div className="search-bar">
-          <Search size={16} className="search-icon" />
-          <input
-            type="search"
-            placeholder="Αναζήτηση πελάτη..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+        <div className="seg" role="group" aria-label="Προβολή">
+          <button aria-pressed={view === 'clients'} onClick={() => setView('clients')}>Πελάτες · {clients.length}</button>
+          <button aria-pressed={view === 'blacklist'} onClick={() => setView('blacklist')}>Blacklist · {blacklist.length}</button>
         </div>
-      </div>
+        <label className="search">
+          <Search size={16} />
+          <input id="clients-search" type="search" placeholder={view === 'clients' ? 'Όνομα, τηλέφωνο, ΑΦΜ…' : 'Αναζήτηση στη Blacklist…'}
+            value={search} onChange={e => setSearch(e.target.value)} />
+        </label>
+      </header>
 
-      <div className="page-content">
-        {/* Stats */}
-        <div className="stats-row">
-          <div className="stat-card">
-            <span className="stat-value text-accent">{clients.length}</span>
-            <span className="stat-label">Σύνολο Πελατών</span>
-          </div>
-          <div className="stat-card">
-            <span className="stat-value text-success">{filtered.length}</span>
-            <span className="stat-label">Αποτελέσματα</span>
-          </div>
-        </div>
-
-        {filtered.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-state-icon"><User size={28} /></div>
-            <div className="empty-state-title">Δεν βρέθηκαν πελάτες</div>
-            <div className="empty-state-sub">Προσθέστε τον πρώτο σας πελάτη πατώντας "Νέος"</div>
+      <div className="body" style={{ gap: 0 }}>
+        {view === 'blacklist' ? (
+          <BlacklistList search={search} />
+        ) : list.length === 0 ? (
+          <div className="empty">
+            <b>{search ? 'Δεν βρέθηκαν πελάτες' : 'Δεν υπάρχουν πελάτες'}</b>
+            {!search && <button className="btn btn-go" onClick={() => setEditing({})}>Νέος πελάτης</button>}
           </div>
         ) : (
-          filtered.map(client => (
-            <div key={client.id} className="list-item" onClick={() => setViewClient(client)}>
-              <div className="list-item-row">
-                <span className="list-item-title">{client.name}</span>
-              </div>
-            </div>
-          ))
+          list.map(c => {
+            const s = stats.get(c.id);
+            const flagged = blacklistMatch(c.name, blacklist);
+            return (
+              <button key={c.id} className="client-row" onClick={() => setOpenId(c.id)}>
+                <span className="who">{c.name}{flagged && <span className="pill late" style={{ marginLeft: 8 }}>blacklist</span>}</span>
+                <span className="meta">{[c.contactPerson, c.phone].filter(Boolean).join(' · ') || (s ? `τελευταία ${formatDate(s.last)}` : 'χωρίς παραγγελίες')}</span>
+                <span className="count"><b>{s?.count || 0}</b>{s ? formatShort(s.last) : ''}</span>
+              </button>
+            );
+          })
         )}
       </div>
 
-      {/* Client Detail Sheet */}
-      {viewClient && (
-        <div className="modal-overlay" onClick={() => setViewClient(null)}>
-          <div className="modal-sheet" onClick={e => e.stopPropagation()}>
-            <div className="modal-sheet-handle" />
-            <div className="modal-sheet-header">
-              <span className="modal-sheet-title">{viewClient.name}</span>
-              <button className="btn-icon" onClick={() => setViewClient(null)}><X size={16} /></button>
-            </div>
-            <div className="modal-sheet-body">
-              <DetailRow icon={<User size={14}/>} label="Υπεύθυνος" value={viewClient.contactPerson} />
-              <DetailRow icon={<Phone size={14}/>} label="Τηλέφωνο" value={viewClient.phone} href={viewClient.phone ? `tel:${viewClient.phone}` : null} />
-              <DetailRow icon={<Mail size={14}/>} label="Email" value={viewClient.email} href={viewClient.email ? `mailto:${viewClient.email}` : null} />
-              <DetailRow icon={<MapPin size={14}/>} label="Διεύθυνση" value={viewClient.address} />
-              {viewClient.notes && <DetailRow icon={<FileText size={14}/>} label="Σημειώσεις" value={viewClient.notes} />}
-
-              {/* Dynamic Dates */}
-              {(latestPaymentDate || latestReorderDate) && <div className="divider" style={{ margin: '12px 0' }} />}
-              {latestPaymentDate && (
-                <DetailRow icon={<CalendarClock size={14} color="var(--danger)" />} label="Τελευταία Προθεσμία Πληρωμής" value={formatDate(latestPaymentDate)} />
-              )}
-              {latestReorderDate && (
-                <DetailRow icon={<CalendarClock size={14} color="var(--warning)" />} label="Επαναληπτική Παραγγελία" value={formatDate(latestReorderDate)} />
-              )}
-
-              {/* Order History */}
-              <div className="divider" style={{ margin: '16px 0' }} />
-              <div className="section-label" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-                <History size={14} /> Ιστορικό Παραγγελιών ({clientOrders.length})
-              </div>
-              
-              {clientOrders.length === 0 ? (
-                <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Δεν υπάρχουν παραγγελίες</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {clientOrders.map(o => (
-                    <div key={o.id} style={{ 
-                      background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', 
-                      padding: '10px 12px', border: '1px solid var(--border)' 
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <span style={{ fontSize: '14px', fontWeight: 600 }}>{o.product || '—'}</span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--text-muted)' }}>
-                        <span>Ποσ.: {o.amount} | Μονάδα: {o.agreedPrice}€</span>
-                        <span>{(() => {
-                          const d = new Date(o.orderDate || o.createdAt);
-                          return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-                        })()}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Price history summary */}
-              {Object.keys(clientPrices).length > 0 && (
-                <>
-                  <div className="divider" style={{ margin: '16px 0' }} />
-                  <div className="section-label" style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-                    <Tag size={14} /> Ειδικές Τιμές Πελάτη (Βάσει Ιστορικού)
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {Object.entries(clientPrices).map(([product, prices]) => (
-                      <div key={product} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                        <span style={{ color: 'var(--text-secondary)' }}>{product}</span>
-                        <span style={{ fontWeight: 600 }}>{prices.map(p => `${parseFloat(p).toFixed(2)}€`).join(' / ')}</span>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-            <div className="modal-sheet-footer">
-              <button className="btn btn-danger" onClick={() => handleDelete(viewClient.id)}>
-                <Trash2 size={14} /> Διαγραφή
-              </button>
-              <button className="btn btn-primary" style={{ flex: 2 }} onClick={() => openEdit(viewClient)}>
-                <Pencil size={14} /> Επεξεργασία
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add/Edit Form Sheet */}
-      {showForm && (
-        <div className="modal-overlay" onClick={() => setShowForm(false)}>
-          <div className="modal-sheet" onClick={e => e.stopPropagation()}>
-            <div className="modal-sheet-handle" />
-            <div className="modal-sheet-header">
-              <span className="modal-sheet-title">{editingId ? 'Επεξεργασία Πελάτη' : 'Νέος Πελάτης'}</span>
-              <button className="btn-icon" onClick={() => setShowForm(false)}><X size={16} /></button>
-            </div>
-            <div className="modal-sheet-body">
-              <div className="form-group">
-                <label className="form-label">Επωνυμία *</label>
-                <input value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} placeholder="Εταιρεία Α.Ε." />
-                {errors.name && <span style={{ color: 'var(--danger)', fontSize: 12 }}>{errors.name}</span>}
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">Υπεύθυνος</label>
-                  <input value={form.contactPerson} onChange={e => setForm(f => ({...f, contactPerson: e.target.value}))} placeholder="Ονοματεπώνυμο" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Τηλέφωνο</label>
-                  <input 
-                    type="tel" 
-                    value={form.phone} 
-                    onChange={e => setForm(f => ({...f, phone: e.target.value.replace(/[^0-9]/g, '').slice(0, 10)}))} 
-                    placeholder="69XXXXXXXX" 
-                  />
-                </div>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Email</label>
-                <input type="email" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} placeholder="info@company.gr" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Διεύθυνση / Έδρα</label>
-                <input value={form.address} onChange={e => setForm(f => ({...f, address: e.target.value}))} placeholder="Οδός, Αριθμός, Πόλη" />
-              </div>
-              <div className="form-group">
-                <label className="form-label">Προεπιλεγμένη Λήξη Πληρωμής</label>
-                <select value={form.defaultPaymentOption || '1month'} onChange={e => setForm(f => ({...f, defaultPaymentOption: e.target.value}))}>
-                  <option value="1month">1 Μήνας</option>
-                  <option value="2months">2 Μήνες</option>
-                  <option value="3months">3 Μήνες</option>
-                  <option value="custom">Προσαρμοσμένο</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Σημειώσεις</label>
-                <textarea rows={3} value={form.notes} onChange={e => setForm(f => ({...f, notes: e.target.value}))} placeholder="Πρόσθετες πληροφορίες..." style={{ resize: 'none' }} />
-              </div>
-            </div>
-            <div className="modal-sheet-footer">
-              <button className="btn btn-secondary" onClick={() => setShowForm(false)}>Ακύρωση</button>
-              <button className="btn btn-primary" style={{ flex: 2 }} onClick={handleSave}>
-                <Check size={14} /> {editingId ? 'Αποθήκευση' : 'Δημιουργία'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {openId && <ClientDetail clientId={openId} onClose={() => setOpenId(null)} onEdit={(c) => setEditing(c)} />}
+      {editing && <ClientForm client={editing.id ? editing : null} onClose={() => setEditing(null)} />}
+      {addingBlacklist && <BlacklistForm onClose={() => setAddingBlacklist(false)} />}
     </div>
   );
 }
 
-function DetailRow({ icon, label, value, href }) {
-  if (!value) return null;
+function ClientDetail({ clientId, onClose, onEdit }) {
+  const { clients, orders, blacklist, deleteClient } = useApp();
+  const { newOrder, openOrder, confirm, toast } = useUI();
+  const client = clients.find(c => c.id === clientId);
+
+  const history = useMemo(
+    () => orders.filter(o => o.clientId === clientId).sort((a, b) => (b.orderDate || '').localeCompare(a.orderDate || '')),
+    [orders, clientId]
+  );
+  if (!client) return null;
+
+  const unpaid = history.filter(o => !o.archived && !o.paid);
+  const totalPallets = history.filter(o => !o.archived).reduce((s, o) => s + pallets(o), 0);
+  const gap = typicalGap(orders, clientId);
+  const flagged = blacklistMatch(client.name, blacklist);
+
+  // Last price per product (variants merged), newest first.
+  const prices = productCatalog(history).map(p => {
+    const last = history.find(o => productKey(o.product) === p.key && o.agreedPrice !== '');
+    return { name: p.name, price: last?.agreedPrice, date: last?.orderDate };
+  }).filter(p => p.price !== undefined);
+
+  const handleDelete = () => confirm({
+    title: 'Διαγραφή πελάτη',
+    text: history.length
+      ? `Ο πελάτης «${client.name}» έχει ${history.length} παραγγελίες. Οι παραγγελίες θα παραμείνουν αλλά θα εμφανίζονται ως «Άγνωστος πελάτης».`
+      : `Ο πελάτης «${client.name}» θα διαγραφεί.`,
+    action: 'Διαγραφή',
+    danger: true,
+    onConfirm: () => { onClose(); deleteClient(client.id); toast('Ο πελάτης διαγράφηκε'); },
+  });
+
   return (
-    <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-      <div style={{ color: 'var(--accent)', marginTop: '2px', flexShrink: 0 }}>{icon}</div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '2px' }}>{label}</div>
-        {href ? (
-          <a href={href} style={{ color: 'var(--accent)', fontSize: '15px', fontWeight: 500 }}>{value}</a>
-        ) : (
-          <div style={{ fontSize: '15px', fontWeight: 500 }}>{value}</div>
-        )}
+    <Sheet title="Πελάτης" onClose={onClose} right={{ label: 'Επεξεργασία', onClick: () => onEdit(client) }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <h3>{client.name}</h3>
+        {flagged && <span className="warn">Παρόμοιο όνομα στη Blacklist: «{flagged.name}»{flagged.comment ? ` — ${flagged.comment}` : ''}</span>}
       </div>
-    </div>
+
+      <div className="paybox">
+        <div className="amt">
+          {unpaid.length}
+          <small>{unpaid.length === 1 ? 'απλήρωτη παραγγελία' : 'απλήρωτες παραγγελίες'}</small>
+        </div>
+        <button className="btn btn-go" onClick={() => newOrder({ clientId: client.id })}><Plus size={16} /> Παραγγελία</button>
+      </div>
+
+      <dl className="kv">
+        {client.contactPerson && <div><dt>Υπεύθυνος</dt><dd>{client.contactPerson}</dd></div>}
+        {client.phone && <div><dt>Τηλέφωνο</dt><dd className="mono"><a href={`tel:${client.phone}`}>{client.phone}</a></dd></div>}
+        {client.email && <div><dt>Email</dt><dd><a href={`mailto:${client.email}`}>{client.email}</a></dd></div>}
+        {client.afm && <div><dt>ΑΦΜ</dt><dd className="mono">{client.afm}</dd></div>}
+        {client.address && <div><dt>Διεύθυνση</dt><dd>{client.address}</dd></div>}
+        <div><dt>Σύνολο παλετών</dt><dd className="mono">{totalPallets}</dd></div>
+        {gap && <div><dt>Παραγγέλνει συνήθως</dt><dd className="mono">κάθε ~{gap} ημ.</dd></div>}
+      </dl>
+      {client.notes && <div className="notes">{client.notes}</div>}
+
+      {prices.length > 0 && (
+        <section style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div className="sec"><h2>Τελευταίες τιμές</h2></div>
+          <dl className="kv">
+            {prices.map(p => (
+              <div key={p.name}><dt className="mono" style={{ fontSize: 12 }}>{p.name}</dt><dd className="mono">{money(parseFloat(p.price))} <span className="hint">{formatShort(p.date)}</span></dd></div>
+            ))}
+          </dl>
+        </section>
+      )}
+
+      <section style={{ display: 'flex', flexDirection: 'column' }}>
+        <div className="sec" style={{ marginBottom: 6 }}><h2>Ιστορικό</h2><small>{history.length} παραγγελίες</small></div>
+        {history.length === 0 && <span className="hint">Δεν υπάρχουν παραγγελίες.</span>}
+        {history.map(o => {
+          const st = orderStatus(o);
+          return (
+            <button key={o.id} className="order" onClick={() => openOrder(o.id)}>
+              <span className="day"><b>{(o.orderDate || '').slice(8, 10)}</b><small>{(o.orderDate || '').slice(5, 7)}.{(o.orderDate || '').slice(2, 4)}</small></span>
+              <span className="who mono" style={{ fontSize: 12.5 }}>{o.product}</span>
+              <span className="prod"><span className={`pill ${st.cls}`}>{st.text}</span></span>
+              <span className="qty"><b>{o.amount || '—'}</b><small>{o.agreedPrice !== '' ? money(parseFloat(o.agreedPrice)) : '—'}</small></span>
+            </button>
+          );
+        })}
+      </section>
+
+      <button className="btn btn-danger" onClick={handleDelete}>Διαγραφή πελάτη</button>
+    </Sheet>
   );
 }
